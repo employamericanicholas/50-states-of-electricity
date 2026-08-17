@@ -54,18 +54,17 @@
      chart therefore carries direct labels, a legend, hover readouts and a table
      twin, so colour is never the only way to read a value. */
   --fuel-coal: #b32d32;              /* red */
-  --fuel-gas: #fd7047;               /* bright orange */
+  --fuel-gas: #ff591f;               /* bright orange (brand Bright Orange) */
   --fuel-geothermal: #ad570b;        /* orange */
   --fuel-petroleum: #633e1d;         /* dark brown */
-  --fuel-solar_small_scale: #a27d12; /* darker yellow */
+  --fuel-solar_small_scale: #715707; /* much darker yellow */
   --fuel-solar_utility: #f0c630;     /* brighter yellow */
   --fuel-biomass: #358452;           /* dark green */
   --fuel-wind: #42b1fc;              /* light blue */
-  --fuel-hydro: #033882;             /* dark blue */
-  --fuel-pumped_storage: #033882;    /* deliberately the same as hydro */
+  --fuel-hydro: #3064b5;             /* blue */
+  --fuel-pumped_storage: #3064b5;    /* deliberately the same as hydro */
   --fuel-nuclear: #9b3aad;           /* purple */
-  --fuel-other_gases: #b9bec8;       /* light grey */
-  --fuel-other: #5c6069;             /* dark grey */
+  --fuel-other: #5c6069;             /* dark grey; also carries other gases */
 
   /* Supply/disposition flow. These are not energy sources, so they take their
      own brand-blue-led scale rather than borrowing a fuel's colour. */

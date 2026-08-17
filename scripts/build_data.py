@@ -70,13 +70,14 @@ DETAIL_LABEL = {
     "geothermal": "Geothermal",
     "biomass": "Biomass",
     "petroleum": "Petroleum",
-    "other_gases": "Other gases",
     "pumped_storage": "Pumped storage hydro",
+    # "Other" also carries other gases (blast furnace and other manufactured
+    # gas), which are reported here rather than as a category of their own.
     "other": "Other",
 }
 
 DETAIL_ORDER = [
-    "coal", "gas", "petroleum", "other_gases", "nuclear", "hydro", "wind",
+    "coal", "gas", "petroleum", "nuclear", "hydro", "wind",
     "solar_utility", "solar_small_scale", "geothermal", "biomass",
     "pumped_storage", "other",
 ]
@@ -89,7 +90,7 @@ DETAIL_ORDER = [
 STATE_FUEL_TO_DETAIL = {
     "COW": "coal",            # all coal products
     "NG": "gas",              # natural gas
-    "OOG": "other_gases",     # other gases
+    "OOG": "other",           # other gases, reported within "Other"
     "PEL": "petroleum",       # petroleum liquids
     "PC": "petroleum",        # petroleum coke
     "NUC": "nuclear",
@@ -114,7 +115,7 @@ FUELTYPE_TO_DETAIL = {
     "COL": "coal",              # coal, excluding waste coal
     "WOC": "coal",              # waste coal
     "NG": "gas",
-    "OOG": "other_gases",       # blast furnace gas, other manufactured gas
+    "OOG": "other",             # blast furnace / other manufactured gas
     "DFO": "petroleum",         # distillate fuel oil
     "RFO": "petroleum",         # residual fuel oil
     "PC": "petroleum",          # petroleum coke
@@ -643,20 +644,25 @@ def detail_block(by_detail: dict[str, float]) -> list[dict]:
 
 
 
-CLEAN_DETAILS = {"nuclear", "hydro", "wind", "solar_utility", "solar_small_scale",
-                 "geothermal", "pumped_storage"}
 RENEWABLE_DETAILS = {"hydro", "wind", "solar_utility", "solar_small_scale",
                      "geothermal", "biomass"}
-FOSSIL_DETAILS = {"coal", "gas", "petroleum", "other_gases"}
+
+# Fossil share is computed from the EIA energy-source CODES, not from the display
+# categories. "Other gases" (blast furnace and other manufactured gas) is fossil,
+# but it is reported inside the "Other" display category, which also holds
+# non-fossil items like waste heat and storage. Reading the codes keeps the share
+# exact regardless of how the categories are grouped for the charts.
+FOSSIL_STATE_CODES = {"COW", "NG", "OOG", "PEL", "PC"}
 
 
-def summarise(by_detail: dict[str, float]) -> dict:
+def summarise(by_detail: dict[str, float], fuels: dict[str, float]) -> dict:
     total = sum(v for v in by_detail.values())
     pos = sum(v for v in by_detail.values() if v > 0)
     share = lambda keys: (sum(by_detail.get(k, 0.0) for k in keys) / pos * 100) if pos else 0.0
+    fossil = sum(fuels.get(c, 0.0) for c in FOSSIL_STATE_CODES)
     return {
         "total_mwh": r2(total),
-        "fossil_pct": r2(share(FOSSIL_DETAILS), 2),
+        "fossil_pct": r2(fossil / pos * 100 if pos else 0.0, 2),
         "renewable_pct": r2(share(RENEWABLE_DETAILS), 2),
         "carbon_free_pct": r2(share(RENEWABLE_DETAILS | {"nuclear"}), 2),
     }
@@ -720,6 +726,7 @@ def build():
 
     index_rows = []
     us_detail: dict[str, float] = defaultdict(float)
+    us_fuels: dict[str, float] = defaultdict(float)   # raw codes, for fossil share
 
     for code, name in sorted(STATES.items(), key=lambda kv: kv[1]):
         fuels = mix.get(code, {})
@@ -729,12 +736,14 @@ def build():
         by_detail["solar_small_scale"] += fuels.get(DPV_CODE, 0.0)
         for d, v in by_detail.items():
             us_detail[d] += v
+        for fc in STATE_PARTITION:
+            us_fuels[fc] += fuels.get(fc, 0.0)
 
         plist = by_state.get(code, [])
         est_co2 = sum(p["co2_t"] for p in plist)
         est_co2_total = sum(p["co2_total_t"] for p in plist)
         off_co2 = official.get(code, {}).get("ALL", 0.0) * 1000.0  # kt -> t
-        summary = summarise(by_detail)
+        summary = summarise(by_detail, fuels)
 
         state_doc = {
             "year": YEAR,
@@ -792,7 +801,7 @@ def build():
     us_off = official.get("US", {}).get("ALL", 0.0) * 1000.0
     if not us_off:
         us_off = sum(r["co2_official_t"] for r in index_rows)
-    us_summary = summarise(us_detail)
+    us_summary = summarise(us_detail, us_fuels)
 
     us_doc = {
         "year": YEAR, "code": "US", "name": "United States",

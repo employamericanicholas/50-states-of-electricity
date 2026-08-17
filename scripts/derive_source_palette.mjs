@@ -80,20 +80,29 @@ function dE(h1, h2, kind) {
 // ── the requested palette: hue is input, lightness is the free variable ─────
 const NORMAL_FLOOR = 15, CVD_FLOOR = 8;
 
+/**
+ * Colours that have been reviewed and approved are PINNED to their exact hex, so
+ * a later run cannot quietly drift them. Only the entries carrying a lightness
+ * range are free, and they are optimised against the pinned set.
+ *
+ * "Other gases" is merged into "Other" and shares its grey, so it has no slot.
+ */
 const SPEC = [
-  // key,                hue, chroma, [Lmin, Lmax],  what was asked for
-  ["coal",               24,  0.17, [0.42, 0.58], "red"],
-  ["gas",                37,  0.19, [0.62, 0.80], "bright orange"],
-  ["geothermal",         53,  0.15, [0.55, 0.73], "orange"],
-  ["petroleum",          60,  0.07, [0.33, 0.47], "dark brown"],
-  ["solar_small_scale",  87,  0.12, [0.52, 0.70], "darker yellow"],
-  ["solar_utility",      92,  0.16, [0.78, 0.90], "brighter yellow"],
-  ["biomass",           153,  0.11, [0.38, 0.55], "dark green"],
-  ["wind",              243,  0.15, [0.66, 0.80], "light blue"],
-  ["hydro",             259,  0.14, [0.36, 0.50], "dark blue"],
-  ["nuclear",           321,  0.19, [0.42, 0.64], "purple"],
-  ["other",             266,  0.015, [0.38, 0.60], "dark grey"],
-  ["other_gases",       266,  0.015, [0.72, 0.88], "light grey"],
+  ["coal",              { hex: "#b32d32" }, "red"],
+  // brand Bright Orange, unchanged. The earlier #fd7047 had drifted lighter and
+  // less saturated, which is what read as salmon rather than orange.
+  ["gas",               { hex: "#ff591f" }, "bright orange"],
+  ["geothermal",        { hex: "#ad570b" }, "orange"],
+  ["petroleum",         { hex: "#633e1d" }, "dark brown"],
+  ["solar_utility",     { hex: "#f0c630" }, "brighter yellow"],
+  ["biomass",           { hex: "#358452" }, "dark green"],
+  ["wind",              { hex: "#42b1fc" }, "light blue"],
+  ["nuclear",           { hex: "#9b3aad" }, "purple"],
+  ["other",             { hex: "#5c6069" }, "dark grey"],
+  // free: significantly darker than the previous #a27d12 at L 0.61
+  ["solar_small_scale", { hue: 88, chroma: 0.10, band: [0.40, 0.52] }, "much darker yellow"],
+  // free: lifted off the previous #033882 at L 0.36, which read almost black
+  ["hydro",             { hue: 259, chroma: 0.14, band: [0.45, 0.56] }, "a little lighter blue"],
 ];
 
 /** Normalised headroom of a pair: 1.0 means exactly at both floors. */
@@ -113,46 +122,51 @@ function worstPair(hexes) {
   return { worst, which };
 }
 
-// candidate steps per source, at 0.01 lightness resolution
-const cands = SPEC.map(([, hue, chroma, [lo, hi]]) => {
+// A pinned slot has exactly one candidate; a free slot has one per 0.01 of
+// lightness across its band.
+const cands = SPEC.map(([, spec]) => {
+  if (spec.hex) return [spec.hex];
   const out = [];
-  for (let L = lo; L <= hi + 1e-9; L += 0.01) {
-    const hex = step(+L.toFixed(3), hue, chroma);
+  for (let L = spec.band[0]; L <= spec.band[1] + 1e-9; L += 0.01) {
+    const hex = step(+L.toFixed(3), spec.hue, spec.chroma);
     if (hex) out.push(hex);
   }
+  if (!out.length) throw new Error("no in-gamut step for a free slot");
   return out;
 });
+const isFree = SPEC.map(([, spec]) => !spec.hex);
 
-// hill-climb from the mid-range assignment: repeatedly move whichever source is
-// in the worst pair to whichever of its own steps most improves the minimum.
-let pick = cands.map((c) => Math.floor(c.length / 2));
+// Exhaustive over the free slots (few of them, so no need to hill-climb):
+// pick the combination whose worst all-pairs score is highest.
+const freeIdx = isFree.flatMap((f, i) => (f ? [i] : []));
+let pick = cands.map(() => 0);
 const hexAt = (p) => p.map((i, k) => cands[k][i]);
-let best = worstPair(hexAt(pick)).worst;
 
-for (let iter = 0; iter < 4000; iter++) {
-  const { which } = worstPair(hexAt(pick));
-  let improved = false;
-  for (const k of which) {
-    for (let i = 0; i < cands[k].length; i++) {
-      if (i === pick[k]) continue;
-      const trial = [...pick];
-      trial[k] = i;
-      const s = worstPair(hexAt(trial)).worst;
-      if (s > best + 1e-9) { best = s; pick = trial; improved = true; }
-    }
+function search(depth, current) {
+  if (depth === freeIdx.length) {
+    return { score: worstPair(hexAt(current)).worst, pick: [...current] };
   }
-  if (!improved) break;
+  const k = freeIdx[depth];
+  let best = null;
+  for (let i = 0; i < cands[k].length; i++) {
+    const trial = [...current];
+    trial[k] = i;
+    const r = search(depth + 1, trial);
+    if (!best || r.score > best.score) best = r;
+  }
+  return best;
 }
+pick = search(0, pick).pick;
 
 const hexes = hexAt(pick);
 
 // ── report ──────────────────────────────────────────────────────────────────
 console.log("Per-source palette: requested hue held, lightness optimised\n");
 console.log("  key                 hex        L     C    H    contrast  asked for");
-SPEC.forEach(([key, hue, , , want], k) => {
+SPEC.forEach(([key, spec, want], k) => {
   const [L, C, H] = oklch(hexes[k]);
   console.log(`  ${key.padEnd(19)} ${hexes[k]}   ${L.toFixed(2)}  ${C.toFixed(2)}  ${String(Math.round(H)).padStart(3)}  `
-    + `${contrast(hexes[k], "#ffffff").toFixed(2).padStart(6)}:1  ${want}`);
+    + `${contrast(hexes[k], "#ffffff").toFixed(2).padStart(6)}:1  ${want}${spec.hex ? " (pinned)" : " (optimised)"}`);
 });
 console.log(`  ${"pumped_storage".padEnd(19)} ${hexes[SPEC.findIndex(s => s[0] === "hydro")]}   `
   + `(shares hydro, as requested)`);
