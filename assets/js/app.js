@@ -4,8 +4,12 @@
    Static: no API key in the browser, no server, no third-party libraries.
    ========================================================================== */
 
+// The ?v= must match the one on this file in index.html. Versioning only the
+// entry point is not enough: the browser caches this import separately, so a
+// new app.js could load against a stale charts.js and fail at import time —
+// which no try/catch inside the module can see. Bump both together.
 import { treemap, hbar, stackedRows, stackedBar, clear, onResize, hideTip, pctLabel }
-  from "./charts.js";
+  from "./charts.js?v=5";
 
 const DATA = "./data";
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -840,7 +844,6 @@ function renderMeta() {
   // from this same meta.json by assets/js/factors.js.
 
   $("#builtStamp").textContent = `Data built ${m.generated_utc.replace("T", " ").replace("Z", " UTC")}`;
-  $("#mastMeta").textContent = `EIA data · calendar year ${m.year}`;
 }
 
 /* ==========================================================================

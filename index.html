@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/css/styles.css?v=4">
+<link rel="stylesheet" href="./assets/css/styles.css?v=5">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23104591'/%3E%3Cpath d='M9 21l4-11 3 7 2-4 5 8z' fill='%23EAC14B'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -27,7 +27,6 @@
            alt="Employ America">
     </a>
     <div class="masthead__spacer"></div>
-    <div class="masthead__meta" id="mastMeta">EIA data</div>
   </div>
 </header>
 
@@ -63,6 +62,19 @@
   <p id="banner" class="callout" role="alert" hidden style="margin-bottom:26px"></p>
   <p id="boot" class="empty">Loading EIA data…</p>
 </div>
+
+<!-- Safety net: if the module graph fails to load at all — a stale cached copy of
+     one file against a fresh copy of another, say — no error surfaces inside the
+     module and the page would just sit on "Loading". Turn that into something
+     actionable instead of a silent hang. -->
+<script>
+  window.setTimeout(function () {
+    var boot = document.getElementById("boot");
+    if (!boot || boot.hidden) return;
+    boot.textContent = "This is taking longer than it should. Your browser may be holding a "
+      + "cached copy of part of the site — reload with Ctrl+Shift+R (Cmd+Shift+R on a Mac).";
+  }, 8000);
+</script>
 
 <main id="main" class="wrap" hidden>
 
@@ -403,6 +415,6 @@
   </div>
 </footer>
 
-<script type="module" src="./assets/js/app.js?v=4"></script>
+<script type="module" src="./assets/js/app.js?v=5"></script>
 </body>
 </html>

@@ -51,7 +51,6 @@ async function main() {
     return;
   }
 
-  $("#mastMeta").textContent = `EIA data · calendar year ${meta.year}`;
   $("#builtStamp").textContent =
     `Data built ${meta.generated_utc.replace("T", " ").replace("Z", " UTC")}`;
 
