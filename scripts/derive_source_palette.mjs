@@ -92,17 +92,15 @@ const SPEC = [
   // brand Bright Orange, unchanged. The earlier #fd7047 had drifted lighter and
   // less saturated, which is what read as salmon rather than orange.
   ["gas",               { hex: "#ff591f" }, "bright orange"],
-  ["geothermal",        { hex: "#ad570b" }, "orange"],
+  ["geothermal",        { hex: "#b20066" }, "pink (brand Pink)"],
   ["petroleum",         { hex: "#633e1d" }, "dark brown"],
   ["solar_utility",     { hex: "#f0c630" }, "brighter yellow"],
+  ["solar_small_scale", { hex: "#ef8c48" }, "orange (brand Orange)"],
   ["biomass",           { hex: "#358452" }, "dark green"],
   ["wind",              { hex: "#42b1fc" }, "light blue"],
+  ["hydro",             { hex: "#3064b5" }, "blue"],
   ["nuclear",           { hex: "#9b3aad" }, "purple"],
   ["other",             { hex: "#5c6069" }, "dark grey"],
-  // free: significantly darker than the previous #a27d12 at L 0.61
-  ["solar_small_scale", { hue: 88, chroma: 0.10, band: [0.40, 0.52] }, "much darker yellow"],
-  // free: lifted off the previous #033882 at L 0.36, which read almost black
-  ["hydro",             { hue: 259, chroma: 0.14, band: [0.45, 0.56] }, "a little lighter blue"],
 ];
 
 /** Normalised headroom of a pair: 1.0 means exactly at both floors. */

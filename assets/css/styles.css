@@ -57,9 +57,9 @@
      twin, so colour is never the only way to read a value. */
   --fuel-coal: #b32d32;              /* red */
   --fuel-gas: #ff591f;               /* bright orange (brand Bright Orange) */
-  --fuel-geothermal: #ad570b;        /* orange */
+  --fuel-geothermal: #b20066;        /* pink (brand Pink) */
   --fuel-petroleum: #633e1d;         /* dark brown */
-  --fuel-solar_small_scale: #715707; /* much darker yellow */
+  --fuel-solar_small_scale: #ef8c48; /* orange (brand Orange) */
   --fuel-solar_utility: #f0c630;     /* brighter yellow */
   --fuel-biomass: #358452;           /* dark green */
   --fuel-wind: #42b1fc;              /* light blue */
