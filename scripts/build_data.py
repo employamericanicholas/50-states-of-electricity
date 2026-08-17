@@ -57,26 +57,8 @@ PAGE = 5000
 # ─────────────────────────────────────────────────────────────────────────────
 # Taxonomy
 # ─────────────────────────────────────────────────────────────────────────────
-# `detail` = the fine-grained energy source we report in tables and tooltips.
-# `slot`   = the 8 colour slots used by the charts (validated palette).
-DETAIL_TO_SLOT = {
-    "coal": "coal",
-    "gas": "gas",
-    "nuclear": "nuclear",
-    "wind": "wind",
-    "solar_utility": "solar_u",
-    "solar_small_scale": "solar_btm",
-    "hydro": "hydro",
-    # everything below folds into the single "Other" slot, but keeps its own
-    # identity in the table view and tooltips
-    "geothermal": "other",
-    "biomass": "other",
-    "petroleum": "other",
-    "other_gases": "other",
-    "pumped_storage": "other",
-    "other": "other",
-}
-
+# Every energy source carries its own chart colour (see assets/css/styles.css and
+# scripts/derive_source_palette.mjs), so there is no coarser grouping layer.
 DETAIL_LABEL = {
     "coal": "Coal",
     "gas": "Natural gas",
@@ -93,18 +75,6 @@ DETAIL_LABEL = {
     "other": "Other",
 }
 
-SLOT_LABEL = {
-    "coal": "Coal",
-    "gas": "Natural gas",
-    "nuclear": "Nuclear",
-    "wind": "Wind",
-    "solar_u": "Solar (utility-scale)",
-    "solar_btm": "Solar (small-scale)",
-    "hydro": "Hydro",
-    "other": "Other",
-}
-
-SLOT_ORDER = ["coal", "gas", "nuclear", "wind", "solar_u", "solar_btm", "hydro", "other"]
 DETAIL_ORDER = [
     "coal", "gas", "petroleum", "other_gases", "nuclear", "hydro", "wind",
     "solar_utility", "solar_small_scale", "geothermal", "biomass",
@@ -668,16 +638,9 @@ def detail_block(by_detail: dict[str, float]) -> list[dict]:
         v = by_detail.get(d, 0.0)
         if v == 0:
             continue
-        out.append({"key": d, "label": DETAIL_LABEL[d], "slot": DETAIL_TO_SLOT[d], "mwh": r2(v)})
+        out.append({"key": d, "label": DETAIL_LABEL[d], "mwh": r2(v)})
     return out
 
-
-def slot_block(by_detail: dict[str, float]) -> list[dict]:
-    agg: dict[str, float] = defaultdict(float)
-    for d, v in by_detail.items():
-        agg[DETAIL_TO_SLOT[d]] += v
-    return [{"key": s, "label": SLOT_LABEL[s], "mwh": r2(agg[s])}
-            for s in SLOT_ORDER if agg.get(s, 0.0) != 0]
 
 
 CLEAN_DETAILS = {"nuclear", "hydro", "wind", "solar_utility", "solar_small_scale",
@@ -734,7 +697,6 @@ def build():
             "sector": m.get("sector") or None,
             "gen_mwh": r2(p["gen_mwh"]),
             "primary": primary,
-            "primary_slot": DETAIL_TO_SLOT[primary],
             "co2_t": r2(p["co2_t"], 0),
             "co2_total_t": r2(p["co2_total_t"], 0),
             "biogenic_mmbtu": r2(p["mmbtu_biogenic"], 0),
@@ -782,7 +744,6 @@ def build():
             "utility_scale_mwh": r2(sum(v for d, v in by_detail.items() if d != "solar_small_scale")),
             "small_scale_solar_mwh": r2(by_detail.get("solar_small_scale", 0.0)),
             "sources": detail_block(by_detail),
-            "slots": slot_block(by_detail),
             "co2": {
                 "estimate_t": r2(est_co2, 0),
                 "estimate_all_fuel_t": r2(est_co2_total, 0),
@@ -815,7 +776,6 @@ def build():
             "co2_official_t": r2(off_co2, 0),
             "co2_kg_per_mwh": state_doc.get("co2_kg_per_mwh"),
             "plant_count": len(plist),
-            "slots": slot_block(by_detail),
             # Detailed sources travel with the index too, so the cross-state
             # chart can name what is inside its "Other" slot, and the by-source
             # rankings can be built without loading 51 state files. Petroleum is
@@ -840,7 +800,6 @@ def build():
         "utility_scale_mwh": r2(sum(v for d, v in us_detail.items() if d != "solar_small_scale")),
         "small_scale_solar_mwh": r2(us_detail.get("solar_small_scale", 0.0)),
         "sources": detail_block(us_detail),
-        "slots": slot_block(us_detail),
         "co2": {
             "estimate_t": r2(us_est, 0),
             "estimate_all_fuel_t": r2(us_est_total, 0),
@@ -878,14 +837,11 @@ def build():
     (DATA / "index.json").write_text(json.dumps({
         "year": YEAR,
         "generated_utc": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "slot_order": SLOT_ORDER,
-        "slot_labels": SLOT_LABEL,
         "detail_order": DETAIL_ORDER,
         "detail_labels": DETAIL_LABEL,
-        "detail_to_slot": DETAIL_TO_SLOT,
         "us": {k: us_doc[k] for k in
                ("total_mwh", "small_scale_solar_mwh", "fossil_pct", "renewable_pct",
-                "carbon_free_pct", "plant_count", "co2_kg_per_mwh", "slots")},
+                "carbon_free_pct", "plant_count", "co2_kg_per_mwh")},
         "states": index_rows,
     }, separators=(",", ":")), encoding="utf-8")
 

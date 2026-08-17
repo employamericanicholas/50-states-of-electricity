@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CO₂ emission factors — 50 States of Electricity</title>
+<meta name="description" content="The CO2 emission factors used to estimate per-plant emissions in the 50 States of Electricity dashboard, with the EIA source for each fuel.">
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./assets/css/styles.css?v=4">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23104591'/%3E%3Cpath d='M9 21l4-11 3 7 2-4 5 8z' fill='%23EAC14B'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead__bar">
+    <a class="logo" href="./" aria-label="Employ America — 50 States of Electricity home">
+      <img class="logo__lockup" src="./assets/img/logo.svg" width="984" height="225" alt="Employ America">
+    </a>
+    <div class="masthead__spacer"></div>
+    <div class="masthead__meta" id="mastMeta">EIA data</div>
+  </div>
+</header>
+
+<div class="wrap hero">
+  <p class="section__eyebrow" style="margin-bottom:14px">Methodology</p>
+  <h1 class="hero__display" style="font-size:clamp(32px,5.4vw,64px)">CO₂ emission<br>factors</h1>
+  <p class="hero__lede">
+    Every CO₂ figure in the dashboard is an estimate built from the bottom up: for each plant and each
+    fuel it burned, the fuel consumed in million Btu multiplied by the factor below. These are EIA's
+    published factors, applied at EIA's finest fuel granularity — bituminous, subbituminous and lignite
+    coal each carry their own value rather than a coal average.
+  </p>
+  <p><a class="btn" href="./">&larr; Back to the dashboard</a></p>
+  <hr class="hero__rule">
+</div>
+
+<main class="wrap" style="padding-bottom:20px">
+  <p id="banner" class="callout" role="alert" hidden style="margin-bottom:26px"></p>
+
+  <section class="section">
+    <div class="card">
+      <div class="card__head">
+        <h2 class="card__title">Factors by EIA fuel code</h2>
+        <div class="card__spacer"></div>
+        <span class="count" id="factorCount"></span>
+      </div>
+      <p class="card__note" id="factorNote"></p>
+      <div class="tablewrap">
+        <table class="data">
+          <caption id="factorCaption"></caption>
+          <thead>
+            <tr>
+              <th scope="col">EIA fuel code</th>
+              <th scope="col">Fuel</th>
+              <th scope="col" class="num">kg CO₂/MMBtu</th>
+              <th scope="col">Treatment</th>
+              <th scope="col">Source</th>
+              <th scope="col">Note</th>
+            </tr>
+          </thead>
+          <tbody id="factorBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="grid-2">
+      <div class="card">
+        <h2 class="card__title" style="margin-bottom:6px">How the estimate is built</h2>
+        <div id="methodBodies"></div>
+      </div>
+      <div class="card">
+        <h2 class="card__title" style="margin-bottom:12px">Sources</h2>
+        <ul class="srclist" id="sourceList"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div>
+      <div class="foot__brand">
+        <img class="logo__lockup logo__lockup--foot" src="./assets/img/logo.svg"
+             width="984" height="225" alt="Employ America">
+      </div>
+      <p style="margin-top:14px">
+        Strategies for the full employment of workers, resources, and technologies.
+        Data from the <a href="https://www.eia.gov/opendata/" rel="noopener" target="_blank">U.S. Energy
+        Information Administration Open Data API</a>. EIA data are in the public domain; this
+        dashboard is not affiliated with or endorsed by EIA.
+      </p>
+      <p style="margin-top:10px"><a href="./">Back to the dashboard</a></p>
+    </div>
+    <div class="foot__right">
+      <div id="builtStamp"></div>
+      <div style="margin-top:6px">Calendar year 2024 · Form EIA-923 / EIA-860</div>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="./assets/js/factors.js?v=4"></script>
+</body>
+</html>

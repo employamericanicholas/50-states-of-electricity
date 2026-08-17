@@ -4,7 +4,8 @@
    Static: no API key in the browser, no server, no third-party libraries.
    ========================================================================== */
 
-import { treemap, hbar, stackedRows, stackedBar, clear, onResize, hideTip } from "./charts.js";
+import { treemap, hbar, stackedRows, stackedBar, clear, onResize, hideTip, pctLabel }
+  from "./charts.js";
 
 const DATA = "./data";
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -33,25 +34,54 @@ const nf = (n, d = 0) => (n === null || n === undefined || Number.isNaN(n)
   ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }));
 
 /**
- * MWh -> a value carrying its own unit, e.g. "1,869.9 TWh" / "413 GWh".
- * GWh and MWh are shown as whole numbers; only TWh keeps a decimal, because at
- * that scale one place is the difference between 1,869 and 1,870 TWh.
+ * MWh -> a value carrying its own unit, e.g. "1,870 TWh" / "413 GWh".
+ * Whole numbers at every scale: these appear in ranked lists where a column of
+ * round figures is easier to compare than one carrying a spurious decimal.
+ * energyParts() returns the value and unit separately for the hero figure.
  */
-function energy(v) {
+/**
+ * Only step up to TWh from 10 TWh, not 1 TWh. Whole numbers below that would
+ * cost real accuracy — Vermont's 2,504 GWh would read as "3 TWh", off by a
+ * fifth — so the smaller unit carries it instead.
+ */
+const TWH_FLOOR = 1e7;   // MWh
+
+function energyParts(v) {
   const a = Math.abs(v);
-  if (a >= 1e6) return `${nf(v / 1e6, 1)} TWh`;
-  if (a >= 1e3) return `${nf(v / 1e3, 0)} GWh`;
-  return `${nf(v, 0)} MWh`;
+  if (a >= TWH_FLOOR) return { value: nf(v / 1e6, 0), unit: "TWh" };
+  if (a >= 1e3) return { value: nf(v / 1e3, 0), unit: "GWh" };
+  return { value: nf(v, 0), unit: "MWh" };
+}
+function energy(v) {
+  const p = energyParts(v);
+  return `${p.value} ${p.unit}`;
 }
 const mwh = energy;                              // treemap tiles use the same format
-const twh = (v, d = 1) => nf(v / 1e6, d);
 /** MWh -> whole GWh. */
 const gwh = (v, d = 0) => nf(v / 1e3, d);
-const mt = (v, d = 1) => nf(v / 1e6, d);        // tonnes -> million tonnes
-const pct = (v, d = 1) => `${nf(v, d)}%`;
+/**
+ * Tonnes of CO2 -> a whole number with the unit that makes it whole. Switching to
+ * kilotonnes below 10 Mt keeps small states honest: Vermont's 11,700 t would
+ * otherwise round to "0.0 Mt".
+ */
+function co2(t) {
+  const a = Math.abs(t);
+  if (a >= 1e7) return { value: nf(t / 1e6, 0), unit: "Mt" };
+  return { value: nf(t / 1e3, 0), unit: "kt" };
+}
+const co2Str = (t) => { const c = co2(t); return `${c.value} ${c.unit}`; };
+const pct = pctLabel;
 
-const slotColor = (slot) =>
-  getComputedStyle(document.documentElement).getPropertyValue(`--fuel-${slot}`).trim() || "#888";
+/**
+ * Colour for an energy source. Every source has its own hue now, so nothing is
+ * folded into a shared "Other" bucket; pumped storage deliberately shares
+ * hydro's blue. Read from CSS so the palette lives in one place.
+ */
+const cssVar = (name, fallback = "#8a8f9a") =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+const sourceColor = (key) => cssVar(`--fuel-${key}`);
+/** Supply/disposition categories are not energy sources; they have their own scale. */
+const flowColor = (key) => cssVar(`--flow-${key}`);
 
 /* ---------- data loading ---------- */
 async function getJSON(url) {
@@ -66,34 +96,39 @@ const geoURL = (code) => (code === "US" ? `${DATA}/us.json` : `${DATA}/state/${c
    ========================================================================== */
 function renderHeadline() {
   const g = S.geo;
-  const co2 = S.basis === "all" ? g.co2.estimate_all_fuel_t : g.co2.estimate_t;
-  const intensity = g.total_mwh > 0 ? (co2 * 1000) / g.total_mwh : null;
+  const co2t = S.basis === "all" ? g.co2.estimate_all_fuel_t : g.co2.estimate_t;
+  const intensity = g.total_mwh > 0 ? (co2t * 1000) / g.total_mwh : null;
 
-  $("#heroValue").textContent = twh(g.total_mwh);
-  $("#heroSub").innerHTML = "";
+  // The unit travels with the figure so the number itself stays whole — DC's
+  // 0.4 TWh reads as "397 GWh" rather than rounding away to "0 TWh".
+  const total = energyParts(g.total_mwh);
+  $("#heroValue").textContent = total.value;
+  $("#heroUnit").textContent = total.unit;
+
   const sub = $("#heroSub");
-  const utility = g.utility_scale_mwh, btm = g.small_scale_solar_mwh;
+  clear(sub);
   sub.append(
-    document.createTextNode(`${twh(utility)} TWh utility-scale, plus `),
-    Object.assign(document.createElement("b"), { textContent: `${twh(btm)} TWh` }),
+    document.createTextNode(`${energy(g.utility_scale_mwh)} utility-scale, plus `),
+    Object.assign(document.createElement("b"),
+      { textContent: energy(g.small_scale_solar_mwh) }),
     document.createTextNode(" estimated behind-the-meter solar."),
   );
 
   const tiles = [
     {
-      label: "Carbon-free share", value: nf(g.carbon_free_pct, 1), unit: "%",
+      label: "Carbon-free share", value: nf(g.carbon_free_pct, g.carbon_free_pct >= 10 ? 0 : 1), unit: "%",
       meter: g.carbon_free_pct, foot: "Nuclear + all renewables",
     },
     {
-      label: "Renewable share", value: nf(g.renewable_pct, 1), unit: "%",
+      label: "Renewable share", value: nf(g.renewable_pct, g.renewable_pct >= 10 ? 0 : 1), unit: "%",
       meter: g.renewable_pct, foot: "Incl. small-scale solar",
     },
     {
-      label: "Fossil share", value: nf(g.fossil_pct, 1), unit: "%",
+      label: "Fossil share", value: nf(g.fossil_pct, g.fossil_pct >= 10 ? 0 : 1), unit: "%",
       meter: g.fossil_pct, foot: "Coal, gas, petroleum, other gases",
     },
     {
-      label: "Estimated CO₂", value: mt(co2), unit: "Mt",
+      label: "Estimated CO₂", value: co2(co2t).value, unit: co2(co2t).unit,
       foot: S.basis === "all" ? "All fuel burned" : "Fuel burned for electricity",
     },
     {
@@ -143,9 +178,8 @@ function renderHeadline() {
    Render: generation mix (treemap + bars + table twin)
    ========================================================================== */
 function mixRows() {
-  // finest-grained sources, with their colour slot
   return S.geo.sources.map((s) => ({
-    key: s.key, label: s.label, value: s.mwh, slot: s.slot, color: slotColor(s.slot),
+    key: s.key, label: s.label, value: s.mwh, color: sourceColor(s.key),
   }));
 }
 
@@ -154,7 +188,7 @@ function renderMix() {
   const posTotal = rows.filter((r) => r.value > 0).reduce((s, r) => s + r.value, 0);
   const negatives = rows.filter((r) => r.value < 0);
 
-  // ---- treemap of the 8 colour slots, subdivided by detailed source ----
+  // ---- treemap: one tile per energy source ----
   const tmItems = rows.filter((r) => r.value > 0).map((r) => ({
     label: r.label, value: r.value, color: r.color,
     sub: r.key === "solar_small_scale"
@@ -170,7 +204,7 @@ function renderMix() {
   // ---- ranked bars with direct value labels ----
   hbar($("#mixBars"), rows.slice().sort((a, b) => b.value - a.value).map((r) => ({
     key: r.key, label: r.label, value: r.value, color: r.color,
-    sub: r.value > 0 ? `${((r.value / posTotal) * 100).toFixed(1)}% of generation` : "net negative",
+    sub: r.value > 0 ? `${pctLabel((r.value / posTotal) * 100)} of generation` : "net negative",
   })), { fmt: energy, labelW: 208, rowH: 30 });
 
   // ---- legend (always present; identity never colour-alone) ----
@@ -183,7 +217,7 @@ function renderMix() {
     const name = document.createElement("span");
     name.textContent = `${r.label} `;
     const b = document.createElement("b");
-    b.textContent = r.value > 0 ? `${((r.value / posTotal) * 100).toFixed(1)}%` : "net −";
+    b.textContent = r.value > 0 ? pctLabel((r.value / posTotal) * 100) : "net −";
     li.append(i, name, b);
     leg.appendChild(li);
   }
@@ -217,7 +251,7 @@ function renderMix() {
     c1.textContent = nf(r.value);
     const c2 = document.createElement("td");
     c2.className = "num";
-    c2.textContent = r.value > 0 ? pct((r.value / posTotal) * 100, 2) : "—";
+    c2.textContent = r.value > 0 ? pctLabel((r.value / posTotal) * 100) : "—";
     tr.append(th, c1, c2);
     tb.appendChild(tr);
   }
@@ -230,12 +264,12 @@ function renderMix() {
    Render: state comparison (100% stacked rows, all 51)
    ========================================================================== */
 const RANK_SORTS = {
-  carbon_free_pct: { label: "Carbon-free share", fmt: (r) => pct(r.carbon_free_pct, 1) },
-  renewable_pct: { label: "Renewable share", fmt: (r) => pct(r.renewable_pct, 1) },
-  fossil_pct: { label: "Fossil share", fmt: (r) => pct(r.fossil_pct, 1) },
-  total_mwh: { label: "Total generation", fmt: (r) => `${twh(r.total_mwh)} TWh` },
+  carbon_free_pct: { label: "Carbon-free share", fmt: (r) => pct(r.carbon_free_pct) },
+  renewable_pct: { label: "Renewable share", fmt: (r) => pct(r.renewable_pct) },
+  fossil_pct: { label: "Fossil share", fmt: (r) => pct(r.fossil_pct) },
+  total_mwh: { label: "Total generation", fmt: (r) => energy(r.total_mwh) },
   co2_kg_per_mwh: { label: "Carbon intensity", fmt: (r) => `${nf(r.co2_kg_per_mwh, 0)} kg/MWh` },
-  name: { label: "State name", fmt: (r) => pct(r.carbon_free_pct, 1) },
+  name: { label: "State name", fmt: (r) => pct(r.carbon_free_pct) },
 };
 
 function renderRanking() {
@@ -248,53 +282,37 @@ function renderRanking() {
 
   stackedRows($("#rankChart"), rows.map((r) => ({
     key: r.code, label: r.name, total: r.total_mwh, src: r,
-    parts: r.slots.map((s) => ({
-      key: s.key, label: s.label, value: s.mwh, color: slotColor(s.key),
-    })),
-    // Hover names the detailed sources, not just the 8 colour slots: petroleum
-    // is 66% of Hawaii's generation yet lives in the shared "Other" slot.
-    tipParts: (r.sources || []).map((s) => ({
-      key: s.key, label: s.label, value: s.mwh, color: slotColor(s.slot),
+    // Every source has its own colour now, so segments and hover readout are the
+    // same list — there is no shared "Other" bucket left to disambiguate.
+    parts: (r.sources || []).map((s) => ({
+      key: s.key, label: s.label, value: s.mwh, color: sourceColor(s.key),
     })),
   })), {
-    labelW: 138, rowH: 23, fmt: (v) => `${twh(v)} TWh`,
+    labelW: 138, rowH: 23, fmt: (v) => energy(v),
     highlight: S.code === "US" ? null : S.code,
     // trailFmt receives the row, so read the metric off its original index record
     trailW: 104, trailFmt: (row) => spec.fmt(row.src), trailLabel: "Total generation",
     onClick: (r) => selectGeo(r.key),
   });
 
-  slotLegend($("#rankLegend"));
+  sourceLegend($("#rankLegend"));
   $("#rankCaption").textContent =
     `All 50 states and the District of Columbia, 2024, ordered by ${spec.label.toLowerCase()}. `
     + `Each row is that state's own generation mix as a share of its total. `
-    + `Select a row to open that state. "Other" is a shared colour for `
-    + `${OTHER_CONTENTS} — hover or focus any row to see which of those it actually is. `
-    + `In Hawaii, for instance, it is almost entirely residual fuel oil.`;
+    + `Select a row to open that state, or hover any row for its full breakdown. `
+    + `Pumped storage shares hydro's colour.`;
 }
 
-/**
- * Legend for the 8 colour slots, in fixed slot order. The "Other" slot is a
- * shared bucket, so it names what it contains — in Hawaii it is mostly
- * petroleum, which would otherwise read as an anonymous 72% of the state.
- */
-const OTHER_CONTENTS = "petroleum, geothermal, biomass, other gases, pumped storage";
-
-function slotLegend(host) {
+/** Legend for the energy sources, in the documented source order. */
+function sourceLegend(host) {
   clear(host);
-  for (const slot of S.index.slot_order) {
+  for (const key of S.index.detail_order) {
     const li = document.createElement("li");
     const i = document.createElement("i");
-    i.style.background = slotColor(slot);
+    i.style.background = sourceColor(key);
     const s = document.createElement("span");
-    s.textContent = S.index.slot_labels[slot];
+    s.textContent = S.index.detail_labels[key];
     li.append(i, s);
-    if (slot === "other") {
-      const hint = document.createElement("span");
-      hint.className = "t-muted";
-      hint.textContent = `(${OTHER_CONTENTS})`;
-      li.appendChild(hint);
-    }
     host.appendChild(li);
   }
 }
@@ -331,7 +349,7 @@ function renderSourceTabs() {
     b.setAttribute("aria-selected", String(key === S.srcKey));
     b.dataset.key = key;
     const i = document.createElement("i");
-    i.style.background = slotColor(S.index.detail_to_slot[key]);
+    i.style.background = sourceColor(key);
     const t = document.createElement("span");
     t.textContent = S.index.detail_labels[key];
     b.append(i, t);
@@ -350,7 +368,7 @@ function renderSourceRank() {
   }
 
   const label = S.index.detail_labels[S.srcKey];
-  const color = slotColor(S.index.detail_to_slot[S.srcKey]);
+  const color = sourceColor(S.srcKey);
   const byGwh = S.srcMetric === "gwh";
   const rows = sourceRows(S.srcKey)
     .filter((r) => r.mwh !== 0)
@@ -372,12 +390,12 @@ function renderSourceRank() {
     label: r.name,
     value: byGwh ? r.mwh / 1e3 : r.share,
     color,
-    sub: byGwh ? `${nf(r.share, 1)}% of ${r.name}'s generation`
+    sub: byGwh ? `${pctLabel(r.share)} of ${r.name}'s generation`
                : `${gwh(r.mwh)} GWh of ${gwh(r.total)} GWh total`,
     meta: S.srcKey === "solar_small_scale"
       ? "EIA model estimate of distributed solar under 1 MW." : null,
   })), {
-    fmt: byGwh ? (v) => `${nf(v, 0)} GWh` : (v) => `${nf(v, 1)}%`,
+    fmt: byGwh ? (v) => `${nf(v, 0)} GWh` : (v) => pctLabel(v),
     labelW: 150, rowH: 26,
     highlight: S.code === "US" ? null : S.code,
     onClick: (d) => selectGeo(d.key),
@@ -399,7 +417,7 @@ function renderSourceRank() {
     c1.textContent = gwh(r.mwh);
     const c2 = document.createElement("td");
     c2.className = "num";
-    c2.textContent = `${nf(r.share, 2)}%`;
+    c2.textContent = pctLabel(r.share);
     const c3 = document.createElement("td");
     c3.className = "num t-muted";
     c3.textContent = gwh(r.total);
@@ -423,7 +441,7 @@ const DEMAND_METRICS = {
   },
   share: {
     label: "Import dependence (%)", get: (d) => d.import_share_pct,
-    fmt: (v) => `${nf(v, 1)}%`,
+    fmt: (v) => pctLabel(v),
     note: "Net imports as a share of all electricity the state had available. Negative bars are net "
         + "exporters — they sent more out than they brought in.",
   },
@@ -456,26 +474,26 @@ function renderDemand() {
     + `electricity came from, the bottom is where it went.`;
 
   const supplyParts = [
-    { label: "In-state generation", value: d.generation_mwh, color: slotColor("hydro") },
+    { label: "In-state generation", value: d.generation_mwh, color: flowColor("generation") },
     { label: isUS ? "Net imports from Canada & Mexico" : "Net imports from other states",
       value: Math.max(0, isUS ? d.net_intl_imports_mwh : d.net_interstate_imports_mwh),
-      color: slotColor("gas") },
+      color: flowColor("imports") },
   ];
   if (!isUS && d.net_intl_imports_mwh > 0) {
     supplyParts.push({ label: "Net international imports",
-                       value: d.net_intl_imports_mwh, color: slotColor("solar_btm") });
+                       value: d.net_intl_imports_mwh, color: flowColor("direct") });
   }
   const dispositionParts = [
-    { label: "Retail sales to customers", value: d.retail_sales_mwh, color: slotColor("nuclear") },
-    { label: "Direct use on site", value: d.direct_use_mwh, color: slotColor("wind") },
-    { label: "Transmission & distribution losses", value: d.losses_mwh, color: slotColor("coal") },
+    { label: "Retail sales to customers", value: d.retail_sales_mwh, color: flowColor("retail") },
+    { label: "Direct use on site", value: d.direct_use_mwh, color: flowColor("direct") },
+    { label: "Transmission & distribution losses", value: d.losses_mwh, color: flowColor("losses") },
   ];
   const exported = -Math.min(0, isUS ? d.net_intl_imports_mwh : d.net_interstate_imports_mwh);
   if (exported > 0) {
-    dispositionParts.push({ label: "Net exports", value: exported, color: slotColor("solar_u") });
+    dispositionParts.push({ label: "Net exports", value: exported, color: flowColor("exports") });
   }
   if (d.unaccounted_mwh > 0) {
-    dispositionParts.push({ label: "Unaccounted", value: d.unaccounted_mwh, color: slotColor("other") });
+    dispositionParts.push({ label: "Unaccounted", value: d.unaccounted_mwh, color: flowColor("unaccounted") });
   }
 
   const wrap = $("#demandBalance");
@@ -502,7 +520,7 @@ function renderDemand() {
       small: isUS ? "International trade only; interstate flows net out."
                   : "Interstate plus international, net." },
     { dt: "Losses in delivery", dd: `${gwh(d.losses_mwh, 0)} GWh`,
-      small: `${nf(d.losses_mwh / d.available_mwh * 100, 1)}% of electricity available.` },
+      small: `${pctLabel(d.losses_mwh / d.available_mwh * 100)} of electricity available.` },
   ];
   for (const it of items) {
     const div = document.createElement("div");
@@ -569,7 +587,7 @@ function renderDemandRank() {
   hbar($("#demandRankChart"), rows.map((r) => ({
     key: r.code, label: r.name, value: r.v,
     // one measure, one colour: bar length already carries the magnitude
-    color: r.v < 0 ? slotColor("solar_u") : slotColor("hydro"),
+    color: r.v < 0 ? flowColor("exports") : flowColor("generation"),
     sub: `${gwh(r.d.consumed_mwh, 0)} GWh used · ${gwh(r.d.generation_mwh, 0)} GWh generated`,
     meta: r.d.is_net_importer
       ? `Net importer: ${gwh(r.d.net_imports_mwh, 0)} GWh brought in.`
@@ -632,7 +650,7 @@ function renderPlants() {
     key: p.id,
     label: p.name.length > 26 ? `${p.name.slice(0, 25)}…` : p.name,
     value: p.gen_mwh,
-    color: slotColor(p.primary_slot),
+    color: sourceColor(p.primary),
     sub: S.index.detail_labels[p.primary] || "",
     meta: [p.operator, p.county ? `${p.county} County` : null, p.state]
       .filter(Boolean).join(" · "),
@@ -667,16 +685,16 @@ function renderPlants() {
     const src = document.createElement("td");
     const sw = document.createElement("span");
     sw.className = "swatch";
-    sw.style.background = slotColor(p.primary_slot);
+    sw.style.background = sourceColor(p.primary);
     src.append(sw, document.createTextNode(S.index.detail_labels[p.primary] || p.primary));
     tr.appendChild(src);
 
-    add(p.capacity_mw === null || p.capacity_mw === undefined ? "—" : nf(p.capacity_mw, 1), "num");
+    add(p.capacity_mw === null || p.capacity_mw === undefined ? "—" : nf(p.capacity_mw, 0), "num");
     add(nf(p.gen_mwh), "num");
     const c = co2Of(p);
     add(c > 0 ? nf(c) : "—", "num");
     add(p.co2_kg_per_mwh === null || p.co2_kg_per_mwh === undefined || co2Of(p) === 0
-      ? "—" : nf(p.co2_kg_per_mwh, 1), "num");
+      ? "—" : nf(p.co2_kg_per_mwh, 0), "num");
     tb.appendChild(tr);
   }
 
@@ -708,13 +726,13 @@ function renderValidation() {
   clear(host);
 
   const items = [
-    { dt: "Our estimate — electricity only", dd: `${mt(c.estimate_t)} Mt`,
+    { dt: "Our estimate — electricity only", dd: co2Str(c.estimate_t),
       small: "Fuel burned to generate electricity, summed over every plant." },
-    { dt: "Our estimate — all fuel burned", dd: `${mt(c.estimate_all_fuel_t)} Mt`,
+    { dt: "Our estimate — all fuel burned", dd: co2Str(c.estimate_all_fuel_t),
       small: "Adds fuel burned for useful thermal output at CHP plants." },
-    { dt: "EIA's published figure", dd: `${mt(c.eia_official_t)} Mt`,
+    { dt: "EIA's published figure", dd: co2Str(c.eia_official_t),
       small: "EIA State Electricity Profiles, CO₂ from the electric power sector." },
-    { dt: "Agreement", dd: c.ratio_to_official ? pct(c.ratio_to_official * 100, 1) : "—",
+    { dt: "Agreement", dd: c.ratio_to_official ? pct(c.ratio_to_official * 100) : "—",
       small: "All-fuel estimate as a share of EIA's published figure." },
   ];
   for (const it of items) {
@@ -734,14 +752,14 @@ function renderValidation() {
   clear(extra);
   const bits = [];
   if (c.unattributed_mmbtu > 0) {
-    bits.push(`${nf(c.unattributed_mmbtu / 1e6, 1)} million MMBtu of fuel here has no published `
+    bits.push(`${nf(c.unattributed_mmbtu / 1e6, 0)} million MMBtu of fuel here has no published `
       + `EIA emission factor (geothermal, blast-furnace and other manufactured gases, purchased `
       + `steam, waste heat) and is left unattributed rather than guessed at.`);
   }
   if (c.biogenic_mmbtu > 0) {
     // The exclusion is a convention, not an absence of stack emissions, so name
     // its size rather than just asserting that it happened.
-    bits.push(`A further ${nf(c.biogenic_mmbtu / 1e6, 1)} million MMBtu of biomass — wood, black `
+    bits.push(`A further ${nf(c.biogenic_mmbtu / 1e6, 0)} million MMBtu of biomass — wood, black `
       + `liquor, landfill gas, biogenic municipal waste — was burned here and carries no CO₂ in any `
       + `figure above. EIA publishes no electric-power factor for these fuels and excludes biogenic `
       + `carbon from its own state series, so none is estimated; that is an accounting convention, `
@@ -818,30 +836,8 @@ function renderMeta() {
   d.append(s, body);
   meth.appendChild(d);
 
-  // emission factor table
-  const fb = $("#factorBody");
-  clear(fb);
-  const treat = { fossil: "Counted", zero: "Zero by construction", biogenic: "Excluded (biogenic)", unknown: "Unattributed" };
-  for (const [code, f] of Object.entries(m.co2_factors)) {
-    const tr = document.createElement("tr");
-    const th = document.createElement("th");
-    th.scope = "row";
-    th.textContent = code;
-    const v = document.createElement("td");
-    v.className = "num";
-    v.textContent = f.kg_co2_per_mmbtu === null ? "—" : nf(f.kg_co2_per_mmbtu, 2);
-    const t = document.createElement("td");
-    t.textContent = treat[f.treatment] || f.treatment;
-    const src = document.createElement("td");
-    src.textContent = f.source ? (m.factor_sources[f.source]?.title || f.source) : "—";
-    if (!f.source) src.className = "t-muted";
-    const n = document.createElement("td");
-    n.textContent = f.note || "";
-    n.className = "t-muted";
-    n.style.whiteSpace = "normal";
-    tr.append(th, v, t, src, n);
-    fb.appendChild(tr);
-  }
+  // The emission-factor table itself lives on emission-factors.html, rendered
+  // from this same meta.json by assets/js/factors.js.
 
   $("#builtStamp").textContent = `Data built ${m.generated_utc.replace("T", " ").replace("Z", " UTC")}`;
   $("#mastMeta").textContent = `EIA data · calendar year ${m.year}`;

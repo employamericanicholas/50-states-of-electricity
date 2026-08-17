@@ -72,6 +72,19 @@ export function inkOn(hex) {
 /** Approximate rendered text width (Lato ~0.53em average). */
 const textW = (str, size, weight = 400) => str.length * size * (weight >= 700 ? 0.565 : 0.525);
 
+/**
+ * Percentage label. Whole numbers from 10% up, where a decimal adds nothing;
+ * one place below that, so a 0.4% sliver does not round away to "0%".
+ * Exported so the page and the charts label percentages identically.
+ */
+export const pctLabel = (v) => {
+  const a = Math.abs(v);
+  return `${v.toLocaleString("en-US", {
+    minimumFractionDigits: a >= 10 ? 0 : 1,
+    maximumFractionDigits: a >= 10 ? 0 : 1,
+  })}%`;
+};
+
 /* ---------- tooltip singleton ---------- */
 let tipNode = null;
 function tip() {
@@ -191,15 +204,16 @@ export function treemap(host, items, opts = {}) {
     if (nameSize) {
       text(g, r.label, { x: x + 8, y: y + 7 + nameSize, class: cls, "font-size": nameSize });
       const valSize = Math.min(11.5, nameSize);
-      const val = `${fmt(r.value)}  ·  ${pct.toFixed(1)}%`;
+      const val = `${fmt(r.value)}  ·  ${pctLabel(pct)}`;
       if (h > nameSize + valSize + 22 && textW(val, valSize) < w - 14) {
         const v = text(g, val, { x: x + 8, y: y + 9 + nameSize + valSize + 3, class: cls,
                                  "font-size": valSize, "font-weight": 400 });
         v.setAttribute("opacity", mode === "inv" ? ".82" : ".72");
       }
     }
+    // fmt carries its own unit, so no unit is appended here.
     interactive(g, r.label,
-      [{ value: `${fmt(r.value)} MWh`, label: `${pct.toFixed(1)}% of total`, color: r.color }],
+      [{ value: fmt(r.value), label: `${pctLabel(pct)} of total`, color: r.color }],
       r.sub || null);
   }
   return svg;
@@ -374,12 +388,9 @@ export function stackedRows(host, rows, opts = {}) {
                              "font-size": 11.5, "font-variant-numeric": "tabular-nums" });
     }
 
-    // The readout may name finer sources than the coloured segments do, so a
-    // catch-all slot never hides what is actually inside it.
-    const readout = (r.tipParts || pos).filter((p) => p.value > 0);
     interactive(g, r.label,
-      readout.slice().sort((a, b) => b.value - a.value).map((p) => ({
-        value: `${((p.value / sum) * 100).toFixed(1)}%`,
+      pos.slice().sort((a, b) => b.value - a.value).map((p) => ({
+        value: pctLabel((p.value / sum) * 100),
         label: p.label, color: p.color,
       })),
       `${trailLabel}${trailLabel ? ": " : ""}${fmt(r.total)}`);
@@ -424,8 +435,9 @@ export function stackedBar(host, parts, opts = {}) {
       text(svg, p.label, { x: x + w / 2, y: height + 15, "text-anchor": "middle",
                            class: "axis-text" });
     }
+    // fmt carries its own unit, so no unit is appended here.
     interactive(g, p.label,
-      [{ value: `${fmt(p.value)} MWh`, label: `${pct.toFixed(1)}%`, color: p.color }]);
+      [{ value: fmt(p.value), label: pctLabel(pct), color: p.color }]);
     x += raw;
   });
   return svg;

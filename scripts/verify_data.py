@@ -55,7 +55,6 @@ def main() -> int:
     # ── structure ────────────────────────────────────────────────────────────
     check(index["year"] == 2024, f"index year is {index['year']}, expected 2024")
     check(len(index["states"]) == 51, f"{len(index['states'])} states in index, expected 51")
-    check(len(index["slot_order"]) == 8, "expected 8 colour slots")
     state_files = sorted(p.stem for p in (DATA / "state").glob("*.json"))
     check(len(state_files) == 51, f"{len(state_files)} state files, expected 51")
     check(sorted(s["code"] for s in index["states"]) == state_files,
@@ -82,7 +81,6 @@ def main() -> int:
           "all-fuel CO2 should be >= electricity-only CO2 nationally")
 
     # ── every state ─────────────────────────────────────────────────────────
-    slots = set(index["slot_order"])
     details = set(index["detail_order"])
     worst_ratio = (None, 0.0)
 
@@ -95,14 +93,8 @@ def main() -> int:
         check(close(src_sum, st["total_mwh"]),
               f"{tag}: sources sum {src_sum:,.0f} != total_mwh {st['total_mwh']:,.0f}")
 
-        # slots are a faithful regrouping of sources
-        slot_sum = sum(s["mwh"] for s in st["slots"])
-        check(close(slot_sum, src_sum), f"{tag}: slots sum != sources sum")
-        for s in st["slots"]:
-            check(s["key"] in slots, f"{tag}: unknown slot {s['key']!r}")
         for s in st["sources"]:
             check(s["key"] in details, f"{tag}: unknown source {s['key']!r}")
-            check(s["slot"] in slots, f"{tag}: source {s['key']} maps to unknown slot {s['slot']!r}")
 
         # utility-scale + behind-the-meter == total
         check(close(st["utility_scale_mwh"] + st["small_scale_solar_mwh"], st["total_mwh"]),
@@ -128,7 +120,6 @@ def main() -> int:
         check(close(est, st["co2"]["estimate_t"], 0.01),
               f"{tag}: summed plant CO2 != state co2.estimate_t")
         for p in st["plants"]:
-            check(p["primary_slot"] in slots, f"{tag}: plant {p['id']} bad primary_slot")
             psum = sum(s["mwh"] for s in p["sources"])
             check(close(psum, p["gen_mwh"], 0.02),
                   f"{tag}: plant {p['id']} sources sum != gen_mwh")
