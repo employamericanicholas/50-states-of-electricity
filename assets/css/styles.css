@@ -427,6 +427,56 @@ details.method .method__body li { margin-bottom: 6px; }
 .is-loading { opacity: .45; transition: opacity .15s ease; }
 .empty { padding: 30px 0; color: var(--ink-faint); font-size: 13.5px; text-align: center; }
 
+/* ==========================================================================
+   Mobile. Everything below lives inside a max-width query, so the desktop
+   rendering above is untouched by definition. The charts handle their own
+   internal sizing off their measured container width (see charts.js).
+   ========================================================================== */
+@media (max-width: 700px) {
+  .wrap { padding: 0 16px; }
+  .masthead__bar { padding: 12px 16px; }
+  .filters__inner { padding: 10px 16px; gap: 12px; }
+  /* full-width controls beat a cramped two-up row on a phone */
+  .filters__inner .field { flex: 1 1 100%; }
+  .field select { width: 100%; min-width: 0; }
+
+  .hero { padding: 26px 0 4px; }
+  .hero__lede { font-size: 16px; }
+  .section { margin-bottom: 30px; }
+  .section__sub { font-size: 14px; }
+  .card { padding: 15px 14px 16px; }
+  .card__head { gap: 8px; }
+
+  /* the hero figure and its tiles stack, and the figure stops being oversized */
+  .figure-hero { padding: 18px 16px 16px; }
+  .figure-hero__value { font-size: clamp(38px, 12vw, 52px); }
+
+  /* One toggle per row rather than three squeezed onto one line. */
+  .toggle { flex-wrap: wrap; }
+  .toggle button { padding: 6px 11px; }
+
+  /* Source tabs scroll sideways instead of stacking into a tall block. */
+  .tabs {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch; padding-bottom: 10px;
+  }
+  .tabs button { flex: none; }
+
+  /* The plant table keeps its own horizontal scroll, but operator and county are
+     the least load-bearing columns, so they step aside to leave room for the
+     numbers. Both remain in the CSV export and the hover readout. */
+  #plantTable th:nth-child(2), #plantTable td:nth-child(2),
+  #plantTable th:nth-child(3), #plantTable td:nth-child(3) { display: none; }
+  .tablewrap--tall { max-height: 460px; }
+  table.data th, table.data td { padding: 7px 8px; }
+
+  .toolbar input[type="search"] { min-width: 0; flex: 1 1 100%; }
+  .count { margin-left: 0; }
+  .kv { gap: 12px 16px; }
+  .foot .wrap { gap: 18px; }
+  .foot__right { margin-left: 0; text-align: left; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }

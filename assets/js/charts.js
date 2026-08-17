@@ -73,6 +73,39 @@ export function inkOn(hex) {
 const textW = (str, size, weight = 400) => str.length * size * (weight >= 700 ? 0.565 : 0.525);
 
 /**
+ * Responsive sizing without a second code path.
+ *
+ * Every chart asks for a fixed label gutter that suits a desktop card. At phone
+ * widths those gutters swallow the plot: a 208px label column inside a 350px
+ * chart leaves ~50px of bar. So a requested size is CLAMPED to a fraction of the
+ * measured width. On a wide container the requested value is always the smaller
+ * of the two and wins untouched, which is what keeps desktop rendering identical.
+ */
+const clampToWidth = (requested, W, fraction) => Math.min(requested, Math.round(W * fraction));
+/** Phones and small tablets, measured on the chart's own container. */
+const isNarrow = (W) => W < 560;
+
+/** "Solar (utility-scale)" -> "Solar": the qualifier rarely fits a tight gutter. */
+const shortLabel = (s) => s.replace(/\s*\(.*\)\s*$/, "");
+
+/**
+ * Longest form of a label that fits `maxW`: the full string, then the short form,
+ * then a truncation. Not every label has a qualifier to drop — "Pumped storage
+ * hydro" has none — so without the truncation step those would spill into the plot.
+ * The untruncated name is always still in the hover readout and the table view.
+ */
+function fitLabel(full, maxW, size, weight = 700, alt = null) {
+  if (textW(full, size, weight) <= maxW) return full;
+  for (const cand of [alt, shortLabel(full)]) {
+    if (cand && cand !== full && textW(cand, size, weight) <= maxW) return cand;
+  }
+  const base = alt || shortLabel(full) || full;
+  const perChar = textW("n", size, weight);
+  const room = Math.max(1, Math.floor(maxW / perChar) - 1);
+  return base.length > room ? `${base.slice(0, room).trimEnd()}…` : base;
+}
+
+/**
  * Percentage label. Whole numbers from 10% up, where a decimal adds nothing;
  * one place below that, so a 0.4% sliver does not round away to "0%".
  * Exported so the page and the charts label percentages identically.
@@ -180,7 +213,9 @@ export function treemap(host, items, opts = {}) {
   if (!data.length) { host.innerHTML = '<p class="empty">No positive generation to show.</p>'; return; }
 
   const W = hostWidth(host);
-  const H = height;
+  // A treemap in a narrow column collapses into slivers no label can sit in, so
+  // give it more height there and let the tiles square back up.
+  const H = isNarrow(W) ? Math.round(Math.max(height, W * 1.15)) : height;
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none",
                           style: `height:${H}px`, role: "group" }, host);
 
@@ -266,13 +301,21 @@ function worst(row, area, short) {
    items: [{ label, value, color, sub?, meta? }]
    ====================================================================== */
 export function hbar(host, items, opts = {}) {
-  const { fmt = String, labelW = 148, rowH = 30, valueSuffix = "", showZeroRule = true,
-          highlight = null, onClick = null } = opts;
+  const { fmt = String, rowH: rowHOpt = 30, valueSuffix = "", showZeroRule = true,
+          highlight = null, onClick = null, shortLabels = null } = opts;
   clear(host);
   if (!items.length) { host.innerHTML = '<p class="empty">Nothing to show.</p>'; return; }
 
   const W = hostWidth(host);
-  const padR = 96;
+  const narrow = isNarrow(W);
+  // On a phone the label gutter gives way to the bars, while the value margin
+  // needs slightly MORE of the width, since "1,870 TWh" does not shrink.
+  const labelW = clampToWidth(opts.labelW ?? 148, W, narrow ? 0.34 : 0.4);
+  // 0.34 is set by the longest value label the by-source ranking produces
+  // ("124,278 GWh"); below that it hangs outside the plot at 320px.
+  const padR = clampToWidth(96, W, narrow ? 0.34 : 0.26);
+  // taller rows on touch, so each row clears a ~24px hit target with its gap
+  const rowH = narrow ? Math.max(rowHOpt, 32) : rowHOpt;
   const plotW = Math.max(60, W - labelW - padR);
   const H = items.length * rowH + 8;
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, role: "group" }, host);
@@ -296,8 +339,15 @@ export function hbar(host, items, opts = {}) {
     const g = el("g", { class: "mark", style: onClick ? "cursor:pointer" : null }, svg);
     const dim = highlight && d.key !== highlight;
 
-    // row label — text token, never the series colour
-    text(g, d.label, {
+    // row label — text token, never the series colour. On a phone, fall back to a
+    // short form (state code, or the name without its qualifier) when the full
+    // label cannot fit the narrowed gutter.
+    // Only on a phone: on desktop the gutter is wide enough, and shortening there
+    // would change a rendering that is already correct.
+    const rowLabel = narrow
+      ? fitLabel(d.label, labelW - 18, 12, 700, shortLabels && shortLabels[d.key])
+      : d.label;
+    text(g, rowLabel, {
       x: labelW - 10, y: y + barH / 2 + 4, "text-anchor": "end",
       class: dim ? "mark-label mark-label--dim" : "mark-label", "font-size": 12,
     });
@@ -337,21 +387,29 @@ export function hbar(host, items, opts = {}) {
    rows:  [{ key, label, total, parts: [{ key, label, value, color }] }]
    ====================================================================== */
 export function stackedRows(host, rows, opts = {}) {
-  const { labelW = 128, rowH = 22, fmt = String, highlight = null, onClick = null,
-          trailW = 92, trailFmt = null, trailLabel = "" } = opts;
+  const { rowH: rowHOpt = 22, fmt = String, highlight = null, onClick = null,
+          trailFmt = null, trailLabel = "", shortLabels = null } = opts;
   clear(host);
   if (!rows.length) { host.innerHTML = '<p class="empty">Nothing to show.</p>'; return; }
 
   const W = hostWidth(host);
+  const narrow = isNarrow(W);
+  // 51 full state names plus a trailing metric leaves almost no plot on a phone,
+  // so both gutters shrink and the names fall back to two-letter codes.
+  const labelW = clampToWidth(opts.labelW ?? 128, W, narrow ? 0.16 : 0.4);
+  const trailW = clampToWidth(opts.trailW ?? 92, W, narrow ? 0.2 : 0.3);
+  const rowH = narrow ? Math.max(rowHOpt, 26) : rowHOpt;
   const plotW = Math.max(80, W - labelW - trailW - 14);
   const H = rows.length * rowH + 26;
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, role: "group" }, host);
 
-  // axis: 0-100% hairlines behind the bars
+  // axis: 0-100% hairlines behind the bars. Only the ends are labelled when narrow;
+  // the quarter ticks have no room for their text.
   const axis = el("g", {}, svg);
   for (const p of [0, 25, 50, 75, 100]) {
     const x = labelW + (p / 100) * plotW;
     el("line", { x1: x, y1: 16, x2: x, y2: H - 8, class: "grid-line" }, axis);
+    if (narrow && p !== 0 && p !== 100) continue;
     text(axis, `${p}%`, { x, y: 10, "text-anchor": p === 0 ? "start" : p === 100 ? "end" : "middle",
                           class: "axis-text" });
   }
@@ -363,7 +421,12 @@ export function stackedRows(host, rows, opts = {}) {
     const dim = highlight && r.key !== highlight;
     const on = highlight && r.key === highlight;
 
-    const lab = text(g, r.label, {
+    // Narrow only, for the same reason as hbar: the two-letter code is a phone
+    // affordance, not a change to the desktop chart.
+    const rowLabel = narrow
+      ? fitLabel(r.label, labelW - 18, 12, 700, (shortLabels && shortLabels[r.key]) || r.key)
+      : r.label;
+    const lab = text(g, rowLabel, {
       x: labelW - 10, y: y + barH / 2 + 4, "text-anchor": "end", "font-size": 12,
       class: on ? "mark-label" : "mark-label mark-label--dim",
     });
@@ -405,9 +468,6 @@ export function stackedRows(host, rows, opts = {}) {
 /* ======================================================================
    A single 100% stacked bar — the selected geography's mix in one line.
    ====================================================================== */
-/** "Solar (utility-scale)" -> "Solar": the qualifier never fits under a segment. */
-const shortLabel = (s) => s.replace(/\s*\(.*\)\s*$/, "");
-
 export function stackedBar(host, parts, opts = {}) {
   const { height = 46, fmt = String, pctSize = 14, labelSize = 15 } = opts;
   clear(host);
