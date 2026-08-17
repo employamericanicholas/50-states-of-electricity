@@ -1,0 +1,300 @@
+{
+  "year": 2024,
+  "generated_utc": "2026-08-17T19:08:20Z",
+  "api": "EIA API v2 (https://api.eia.gov/v2/)",
+  "sources": [
+    {
+      "id": "operational",
+      "title": "EIA, Electric Power Operations (Annual and Monthly) \u2014 net generation by state and energy source",
+      "route": "electricity/electric-power-operational-data",
+      "url": "https://www.eia.gov/opendata/browser/electricity/electric-power-operational-data",
+      "form": "Form EIA-923",
+      "used_for": "State and national generation mix; estimated small-scale (behind-the-meter) solar PV via energy-source code DPV."
+    },
+    {
+      "id": "facility",
+      "title": "EIA, Electric Power Operations for Individual Power Plants (Annual and Monthly)",
+      "route": "electricity/facility-fuel",
+      "url": "https://www.eia.gov/opendata/browser/electricity/facility-fuel",
+      "form": "Form EIA-923",
+      "used_for": "Per-plant net generation (MWh) and fuel consumed for electricity generation (MMBtu), the basis of the per-plant CO2 estimate."
+    },
+    {
+      "id": "generators",
+      "title": "EIA, Inventory of Operable Generators",
+      "route": "electricity/operating-generator-capacity",
+      "url": "https://www.eia.gov/opendata/browser/electricity/operating-generator-capacity",
+      "form": "Form EIA-860 / EIA-860M",
+      "used_for": "Plant operator, county, coordinates, nameplate capacity, balancing authority."
+    },
+    {
+      "id": "emissions",
+      "title": "EIA, State Electricity Profiles \u2014 Emissions by state by fuel",
+      "route": "electricity/state-electricity-profiles/emissions-by-state-by-fuel",
+      "url": "https://www.eia.gov/opendata/browser/electricity/state-electricity-profiles",
+      "used_for": "EIA's own official electric-power CO2 by state, shown alongside our plant-level estimate as a cross-check."
+    },
+    {
+      "id": "epa_a3",
+      "title": "EIA, Electric Power Annual, Table A.3 \u2014 Carbon dioxide uncontrolled emission factors",
+      "url": "https://www.eia.gov/electricity/annual/html/epa_a_03.html",
+      "used_for": "CO2 emission factors (kg CO2 per MMBtu)."
+    },
+    {
+      "id": "coeff",
+      "title": "EIA, Carbon Dioxide Emissions Coefficients",
+      "url": "https://www.eia.gov/environment/emissions/co2_vol_mass.php",
+      "used_for": "CO2 emission factors (kg CO2 per MMBtu)."
+    }
+  ],
+  "methodology": {
+    "generation": "Net generation for calendar year 2024, all sectors, from Form EIA-923 as served by the EIA API. State mixes use the 13 mutually exclusive energy-source codes that sum exactly to EIA's own all-fuels total; the build verifies that identity for every state.",
+    "small_scale_solar": "Behind-the-meter solar is EIA's own estimate of small-scale (<1 MW) distributed solar PV generation, energy-source code DPV, published by state and sector. It is not part of utility-scale net generation, so it is reported separately and added on top of the utility-scale total rather than being mixed into it. It is an EIA model estimate, not metered generation, and no plant-level detail exists for it.",
+    "co2": "Per-plant CO2 is an estimate, not a measurement. For each plant and each fuel it burns, CO2 = fuel consumed (MMBtu, Form EIA-923) x the EIA CO2 emission factor for that specific fuel. Fuel codes are read at EIA's finest granularity, so bituminous, subbituminous and lignite coal each get their own factor rather than a coal average. Two bases are reported: the headline per-plant figure uses fuel consumed FOR ELECTRICITY GENERATION, which excludes fuel burned for useful thermal output at combined-heat-and-power plants and so reflects electricity alone; the all-fuel basis adds that thermal fuel back and is what we compare against EIA's own published state total. Biogenic CO2 from biomass is excluded from both, matching EIA's state electric-power CO2 series. Nuclear, wind, solar and water are zero by construction. Fuels for which EIA publishes no single applicable factor - geothermal (which differs between steam and binary-cycle plants), blast-furnace and other manufactured gases, purchased steam and waste heat - are left unattributed rather than guessed at, and the unattributed MMBtu is reported so the gap is visible. Every state view shows our estimate next to EIA's official state total.",
+    "caveats": [
+      "Generation is in-state production, not consumption: it excludes imports and exports, so a state's mix is not the mix its customers consume.",
+      "Pumped-storage hydro is net of pumping load and is usually negative; it is a storage round-trip, not a source of energy.",
+      "'Other' net generation can be negative in some states, which is why the treemap omits negative values and the bar chart shows them.",
+      "Plant coordinates, operator and capacity come from the December 2024 generator inventory; plants that retired mid-year may generate in EIA-923 without appearing there."
+    ]
+  },
+  "co2_factors": {
+    "AB": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "ANT": {
+      "kg_co2_per_mmbtu": 103.69,
+      "treatment": "fossil",
+      "source": "coeff"
+    },
+    "BFG": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "unknown",
+      "source": null,
+      "note": "Blast furnace gas: no EIA electric-power emission factor published."
+    },
+    "BIT": {
+      "kg_co2_per_mmbtu": 93.24,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "BLQ": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "DFO": {
+      "kg_co2_per_mmbtu": 74.14,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "GEO": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "unknown",
+      "source": "epa_a3",
+      "note": "EIA gives 11.81 kg/MMBtu for steam plants and 0.00 for binary-cycle plants; the API does not say which a given plant is, so geothermal is left unattributed."
+    },
+    "H2": {
+      "kg_co2_per_mmbtu": 0.0,
+      "treatment": "zero",
+      "source": null,
+      "note": "No combustion CO2; upstream production emissions are out of scope."
+    },
+    "JF": {
+      "kg_co2_per_mmbtu": 72.23,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "KER": {
+      "kg_co2_per_mmbtu": 73.19,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "LFG": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "LIG": {
+      "kg_co2_per_mmbtu": 98.27,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "MSB": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "MSN": {
+      "kg_co2_per_mmbtu": 49.89,
+      "treatment": "fossil",
+      "source": "coeff",
+      "note": "EIA publishes one municipal-solid-waste factor; applied to the non-biogenic MSW stream."
+    },
+    "MSW": {
+      "kg_co2_per_mmbtu": 49.89,
+      "treatment": "fossil",
+      "source": "coeff"
+    },
+    "MWH": {
+      "kg_co2_per_mmbtu": 0.0,
+      "treatment": "zero",
+      "source": null,
+      "note": "Electricity consumed for storage, not a combusted fuel."
+    },
+    "NG": {
+      "kg_co2_per_mmbtu": 52.91,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "NUC": {
+      "kg_co2_per_mmbtu": 0.0,
+      "treatment": "zero",
+      "source": null
+    },
+    "OBG": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "OBL": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "OBS": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "OG": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "unknown",
+      "source": null,
+      "note": "Other manufactured gas: composition varies by site, no single EIA factor."
+    },
+    "OOG": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "unknown",
+      "source": null
+    },
+    "OTH": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "unknown",
+      "source": null
+    },
+    "PC": {
+      "kg_co2_per_mmbtu": 102.12,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "PG": {
+      "kg_co2_per_mmbtu": 62.88,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "PUR": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "unknown",
+      "source": null,
+      "note": "Purchased steam: emissions belong to the producing facility."
+    },
+    "RC": {
+      "kg_co2_per_mmbtu": 93.24,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "RFO": {
+      "kg_co2_per_mmbtu": 75.09,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "SC": {
+      "kg_co2_per_mmbtu": 93.24,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "SGC": {
+      "kg_co2_per_mmbtu": 93.24,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "SGP": {
+      "kg_co2_per_mmbtu": 102.12,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "SLW": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "SUB": {
+      "kg_co2_per_mmbtu": 97.13,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "SUN": {
+      "kg_co2_per_mmbtu": 0.0,
+      "treatment": "zero",
+      "source": null
+    },
+    "TDF": {
+      "kg_co2_per_mmbtu": 85.97,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "WAT": {
+      "kg_co2_per_mmbtu": 0.0,
+      "treatment": "zero",
+      "source": null
+    },
+    "WC": {
+      "kg_co2_per_mmbtu": 93.24,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    },
+    "WDL": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "WDS": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "biogenic",
+      "source": null
+    },
+    "WH": {
+      "kg_co2_per_mmbtu": null,
+      "treatment": "unknown",
+      "source": null,
+      "note": "Waste heat recovery: no fuel combusted at this plant."
+    },
+    "WND": {
+      "kg_co2_per_mmbtu": 0.0,
+      "treatment": "zero",
+      "source": null
+    },
+    "WO": {
+      "kg_co2_per_mmbtu": 74.0,
+      "treatment": "fossil",
+      "source": "epa_a3"
+    }
+  },
+  "factor_sources": {
+    "epa_a3": {
+      "title": "EIA, Electric Power Annual, Table A.3 \u2014 Carbon dioxide uncontrolled emission factors",
+      "url": "https://www.eia.gov/electricity/annual/html/epa_a_03.html"
+    },
+    "coeff": {
+      "title": "EIA, Carbon Dioxide Emissions Coefficients",
+      "url": "https://www.eia.gov/environment/emissions/co2_vol_mass.php"
+    }
+  },
+  "validation": {
+    "state_partition_warnings": [],
+    "plant_fuel_warnings": []
+  }
+}

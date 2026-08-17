@@ -1,0 +1,61 @@
+name: Deploy to GitHub Pages
+
+# Publishes the static site exactly as committed. The dashboard needs no API key
+# at runtime because data/ holds pre-built JSON, so this workflow needs no secrets.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify the dataset
+        run: |
+          set -euo pipefail
+          for f in data/index.json data/us.json data/meta.json; do
+            test -f "$f" || { echo "::error::missing $f — run scripts/build_data.py and commit data/"; exit 1; }
+          done
+          python scripts/verify_data.py
+
+      - name: Verify the chart palette still clears every gate
+        run: node scripts/derive_palette.mjs
+
+      - name: Fail if a secret was committed
+        run: |
+          if git ls-files --error-unmatch .env 2>/dev/null; then
+            echo "::error::.env is tracked in git — remove it and rotate the key"; exit 1
+          fi
+          echo "no tracked .env"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

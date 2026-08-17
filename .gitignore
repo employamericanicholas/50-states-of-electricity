@@ -1,0 +1,16 @@
+# Secrets — the EIA API key must never be committed
+.env
+.env.local
+*.key
+
+# Raw EIA API response cache (regenerable, large)
+.cache/
+
+# OS / editor cruft
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+__pycache__/
+*.pyc

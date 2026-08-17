@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>50 States of Electricity — U.S. power generation and emissions, 2024</title>
+<meta name="description" content="Every U.S. power plant's 2024 generation and estimated CO2, by state, built from official U.S. Energy Information Administration data — including EIA's estimate of behind-the-meter solar.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="50 States of Electricity">
+<meta property="og:description" content="What each state's electricity is made of, plant by plant. Official EIA data for calendar year 2024.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./assets/css/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23191E3A'/%3E%3Cpath d='M9 21l4-11 3 7 2-4 5 8z' fill='%23EF8C48'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<!-- ════════════════════════════════ masthead ════════════════════════════ -->
+<header class="masthead">
+  <div class="masthead__bar">
+    <!-- Wordmark-only lockup. The official eagle logotype is not reproduced here;
+         drop the real file in as assets/img/logo.svg and uncomment the <img> to
+         restore the full lockup (Brand Guidelines pp.6-7, finalfiles/logos). -->
+    <a class="logo" href="./" aria-label="Employ America — 50 States of Electricity home">
+      <!-- <img class="logo__mark" src="./assets/img/logo.svg" alt="" aria-hidden="true"> -->
+      <span class="logo__word">Employ<br>America</span>
+    </a>
+    <div class="masthead__spacer"></div>
+    <div class="masthead__meta" id="mastMeta">EIA data</div>
+    <button class="iconbtn" id="themeBtn" type="button" aria-label="Switch to dark theme">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ════════════════════════════════ title ═══════════════════════════════ -->
+<div class="wrap hero">
+  <h1 class="hero__display">50 States<br>of <em>Electricity</em></h1>
+  <p class="hero__lede">
+    What each state's electricity is actually made of — plant by plant, for calendar year 2024.
+    Every figure here comes from the U.S. Energy Information Administration, including EIA's own
+    estimate of the rooftop solar that never touches the grid's meters.
+  </p>
+  <hr class="hero__rule">
+</div>
+
+<!-- ════════════════════════════ filter row ══════════════════════════════ -->
+<div class="filters">
+  <div class="filters__inner">
+    <label class="field">
+      <span class="field__label">Geography</span>
+      <select id="geoSelect" aria-describedby="geoHint"></select>
+    </label>
+    <label class="field">
+      <span class="field__label">CO₂ accounting basis</span>
+      <select id="basisSelect">
+        <option value="elec">Fuel burned for electricity</option>
+        <option value="all">All fuel burned (incl. heat)</option>
+      </select>
+    </label>
+    <p class="filters__note" id="geoHint">
+      Everything below is scoped to the selected geography.
+    </p>
+  </div>
+</div>
+
+<div class="wrap">
+  <p id="banner" class="callout" role="alert" hidden style="margin-bottom:26px"></p>
+  <p id="boot" class="empty">Loading EIA data…</p>
+</div>
+
+<main id="main" class="wrap" hidden>
+
+  <!-- ═══════════════════════ headline ═══════════════════════ -->
+  <section class="section" id="overview" aria-labelledby="ovTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Overview</p>
+      <h2 class="section__title" id="ovTitle">
+        Electricity generated in <span id="geoName">the United States</span>, 2024
+      </h2>
+      <p class="section__sub">
+        Net generation is electricity <strong>produced</strong> inside the geography. It is not the same as
+        electricity consumed there — states import and export power across the grid.
+      </p>
+    </div>
+
+    <div class="headline">
+      <div class="figure-hero">
+        <p class="figure-hero__label">Total net generation</p>
+        <span class="figure-hero__value" id="heroValue">—</span><span class="figure-hero__unit">TWh</span>
+        <p class="figure-hero__sub" id="heroSub"></p>
+      </div>
+      <div class="tiles" id="tiles"></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ generation mix ═══════════════════════ -->
+  <section class="section" id="mix" aria-labelledby="mixTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Generation mix</p>
+      <h2 class="section__title" id="mixTitle">
+        What <span id="mixGeo">the United States</span> ran on
+      </h2>
+      <p class="section__sub">
+        Area and bar length are both net generation in megawatt-hours. Behind-the-meter solar is
+        EIA's model estimate of distributed systems under 1 MW; it sits outside utility-scale
+        generation and is added on top rather than mixed into it.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card__head">
+        <h3 class="card__title">Net generation by energy source</h3>
+        <div class="card__spacer"></div>
+        <div class="toggle" id="mixToggle" role="group" aria-label="Generation mix view">
+          <button type="button" data-view="chart" aria-pressed="true">Charts</button>
+          <button type="button" data-view="table" aria-pressed="false">Table</button>
+        </div>
+      </div>
+
+      <div id="mixChartView">
+        <div class="chart" id="mixBar" style="margin:6px 0 22px"></div>
+        <div class="grid-2">
+          <div>
+            <p class="card__note">
+              Treemap — each tile is one energy source, sized by generation.
+            </p>
+            <div class="chart" id="mixTreemap"></div>
+          </div>
+          <div>
+            <p class="card__note">Ranked by generation, largest first.</p>
+            <div class="chart" id="mixBars"></div>
+          </div>
+        </div>
+        <ul class="legend" id="mixLegend"></ul>
+        <p class="card__note" id="mixNote" hidden style="margin-top:14px"></p>
+      </div>
+
+      <div id="mixTableView" hidden>
+        <div class="tablewrap">
+          <table class="data">
+            <caption id="mixTableCaption"></caption>
+            <thead>
+              <tr>
+                <th scope="col">Energy source</th>
+                <th scope="col" class="num">Net generation (MWh)</th>
+                <th scope="col" class="num">Share</th>
+              </tr>
+            </thead>
+            <tbody id="mixTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ all 51 compared ═══════════════════════ -->
+  <section class="section" id="states" aria-labelledby="rankTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">All 50 states + DC</p>
+      <h2 class="section__title" id="rankTitle">Every state's mix, side by side</h2>
+      <p class="section__sub">
+        Each row is one state's generation mix as a share of its own total, so a small state reads
+        as clearly as Texas. Select any row to open that state.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card__head">
+        <h3 class="card__title">Share of in-state generation by source</h3>
+        <div class="card__spacer"></div>
+        <label class="field" style="flex-direction:row;align-items:center;gap:9px">
+          <span class="field__label" style="white-space:nowrap">Order by</span>
+          <select id="rankSort"></select>
+        </label>
+      </div>
+      <ul class="legend" id="rankLegend" style="margin:2px 0 16px"></ul>
+      <div class="chart" id="rankChart"></div>
+      <p class="card__note" id="rankCaption" style="margin-top:14px"></p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ plants ═══════════════════════ -->
+  <section class="section" id="plants" aria-labelledby="plantTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Power plants</p>
+      <h2 class="section__title" id="plantTitle">
+        Every generator in <span id="plantGeo">the United States</span>
+      </h2>
+      <p class="section__sub">
+        Generation for each plant that reported to EIA in 2024, with an estimated CO₂ figure derived
+        from the fuel it burned. Plants that burn nothing — nuclear, wind, solar, hydro — show no CO₂.
+      </p>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <h3 class="card__title">Largest generators</h3>
+      <p class="card__note" id="plantChartCaption"></p>
+      <div class="chart" id="plantChart"></div>
+    </div>
+
+    <div class="card">
+      <div class="card__head">
+        <h3 class="card__title">Plant-level detail</h3>
+      </div>
+      <div class="toolbar">
+        <label class="sr-only" for="plantSearch">Search plants by name, operator or county</label>
+        <input type="search" id="plantSearch" placeholder="Search plant, operator or county…" autocomplete="off">
+        <button class="btn" id="csvBtn" type="button">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>
+          Download CSV
+        </button>
+        <span class="count" id="plantCount"></span>
+      </div>
+      <div class="tablewrap tablewrap--tall">
+        <table class="data" id="plantTable">
+          <caption id="plantTableCaption"></caption>
+          <thead>
+            <tr>
+              <th scope="col" data-key="name">Plant <span aria-hidden="true">↕</span></th>
+              <th scope="col" data-key="operator">Operator <span aria-hidden="true">↕</span></th>
+              <th scope="col" data-key="county">County <span aria-hidden="true">↕</span></th>
+              <th scope="col" data-key="primary">Primary source <span aria-hidden="true">↕</span></th>
+              <th scope="col" data-key="capacity_mw" class="num">Capacity MW <span aria-hidden="true">↕</span></th>
+              <th scope="col" data-key="gen_mwh" class="num">Generation MWh <span aria-hidden="true">↕</span></th>
+              <th scope="col" data-key="co2_key" class="num">Est. CO₂ t <span aria-hidden="true">↕</span></th>
+              <th scope="col" data-key="co2_kg_per_mwh" class="num">kg CO₂/MWh <span aria-hidden="true">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="plantTableBody"></tbody>
+        </table>
+      </div>
+      <div class="toolbar" style="margin-top:12px">
+        <button class="btn" id="plantMore" type="button" hidden>Show more plants</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ validation ═══════════════════════ -->
+  <section class="section" id="validation" aria-labelledby="valTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">How good is the CO₂ estimate?</p>
+      <h2 class="section__title" id="valTitle">
+        Checked against EIA's own figure for <span id="valGeo">the United States</span>
+      </h2>
+      <p class="section__sub">
+        Our CO₂ numbers are built from the bottom up, plant by plant. EIA separately publishes its
+        own state totals. Comparing the two is the honest way to show how much to trust ours.
+      </p>
+    </div>
+    <div class="card">
+      <dl class="kv" id="validationGrid"></dl>
+      <p class="card__note" id="validationNote" style="margin:18px 0 0" hidden></p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ sources ═══════════════════════ -->
+  <section class="section" id="methodology" aria-labelledby="srcTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Sources &amp; method</p>
+      <h2 class="section__title" id="srcTitle">Where every number comes from</h2>
+      <p class="section__sub">
+        This site ships a static copy of the data so it loads without an API key. Rebuild it any time
+        with <code>python scripts/build_data.py</code>.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card__title" style="margin-bottom:12px">EIA sources</h3>
+        <ul class="srclist" id="sourceList"></ul>
+      </div>
+      <div class="card">
+        <h3 class="card__title" style="margin-bottom:6px">Method &amp; limits</h3>
+        <div id="methodBodies"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h3 class="card__title">CO₂ emission factors used</h3>
+      <p class="card__note">
+        Applied to the specific fuel each plant burned, at EIA's finest fuel granularity — bituminous,
+        subbituminous and lignite coal each carry their own factor rather than a coal average.
+      </p>
+      <div class="tablewrap tablewrap--tall">
+        <table class="data">
+          <thead>
+            <tr>
+              <th scope="col">EIA fuel code</th>
+              <th scope="col" class="num">kg CO₂/MMBtu</th>
+              <th scope="col">Treatment</th>
+              <th scope="col">Source</th>
+              <th scope="col">Note</th>
+            </tr>
+          </thead>
+          <tbody id="factorBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ════════════════════════════════ footer ══════════════════════════════ -->
+<footer class="foot">
+  <div class="wrap">
+    <div>
+      <div class="foot__brand">
+        <span class="logo__word">Employ<br>America</span>
+      </div>
+      <p style="margin-top:14px">
+        Strategies for the full employment of workers, resources, and technologies.
+        Data from the <a href="https://www.eia.gov/opendata/" rel="noopener" target="_blank">U.S. Energy
+        Information Administration Open Data API</a>. EIA data are in the public domain; this
+        dashboard is not affiliated with or endorsed by EIA.
+      </p>
+    </div>
+    <div class="foot__right">
+      <div id="builtStamp"></div>
+      <div style="margin-top:6px">Calendar year 2024 · Form EIA-923 / EIA-860</div>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="./assets/js/app.js"></script>
+</body>
+</html>

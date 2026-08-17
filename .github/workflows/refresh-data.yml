@@ -1,0 +1,70 @@
+name: Refresh EIA data
+
+# Re-runs the ETL and opens a pull request if any figures changed.
+#
+# Requires a repository secret named EIA_API_KEY
+# (Settings -> Secrets and variables -> Actions -> New repository secret).
+#
+# Schedule + manual dispatch only: never runs on pull requests or forks, so the
+# key is never exposed to untrusted code. The published site never needs it.
+
+on:
+  schedule:
+    - cron: "0 6 3 * *"      # 06:00 UTC on the 3rd of each month
+  workflow_dispatch:
+    inputs:
+      no_cache:
+        description: "Ignore the response cache and refetch everything"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Rebuild the dataset
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: |
+          if [ -z "${EIA_API_KEY}" ]; then
+            echo "::error::EIA_API_KEY secret is not set — add it in repository settings"; exit 1
+          fi
+          python scripts/build_data.py ${{ inputs.no_cache && '--no-cache' || '' }} | tee build.log
+
+      - name: Verify the rebuilt dataset
+        run: python scripts/verify_data.py
+
+      - name: Surface any validation warnings
+        run: |
+          python - <<'PY'
+          import json
+          v = json.load(open("data/meta.json"))["validation"]
+          warn = v["state_partition_warnings"] + v["plant_fuel_warnings"]
+          if warn:
+              print("::warning::the build reported validation warnings:")
+              for w in warn:
+                  print(f"::warning::{w}")
+          else:
+              print("no validation warnings")
+          PY
+
+      - name: Open a pull request if the data moved
+        uses: peter-evans/create-pull-request@v6
+        with:
+          add-paths: data
+          branch: chore/refresh-eia-data
+          delete-branch: true
+          commit-message: "chore(data): refresh from the EIA API"
+          title: "chore(data): refresh EIA dataset"
+          body-path: build.log
+          labels: data
