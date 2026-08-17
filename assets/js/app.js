@@ -9,7 +9,7 @@
 // new app.js could load against a stale charts.js and fail at import time —
 // which no try/catch inside the module can see. Bump both together.
 import { treemap, hbar, stackedRows, stackedBar, clear, onResize, hideTip, pctLabel }
-  from "./charts.js?v=5";
+  from "./charts.js?v=6";
 
 const DATA = "./data";
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -38,15 +38,13 @@ const nf = (n, d = 0) => (n === null || n === undefined || Number.isNaN(n)
   ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }));
 
 /**
- * MWh -> a value carrying its own unit, e.g. "1,870 TWh" / "413 GWh".
- * Whole numbers at every scale: these appear in ranked lists where a column of
- * round figures is easier to compare than one carrying a spurious decimal.
- * energyParts() returns the value and unit separately for the hero figure.
- */
-/**
- * Only step up to TWh from 10 TWh, not 1 TWh. Whole numbers below that would
- * cost real accuracy — Vermont's 2,504 GWh would read as "3 TWh", off by a
- * fifth — so the smaller unit carries it instead.
+ * MWh -> a value carrying its own unit, e.g. "1,870 TWh" / "413 GWh". Whole
+ * numbers at every scale: these sit in ranked lists, where a column of round
+ * figures compares more easily than one carrying a spurious decimal.
+ *
+ * TWh only kicks in from 10 TWh, not 1 TWh: whole numbers below that would cost
+ * real accuracy, since Vermont's 2,504 GWh would read as "3 TWh", off by a fifth.
+ * energyParts() returns value and unit separately, for the hero figure's markup.
  */
 const TWH_FLOOR = 1e7;   // MWh
 
@@ -201,8 +199,12 @@ function renderMix() {
   }));
   treemap($("#mixTreemap"), tmItems, { height: 356, fmt: mwh });
 
-  // ---- single stacked bar: the mix in one line ----
+  // ---- single stacked bar: the mix in one line, largest share first ----
+  // Sorted by size rather than the documented source order, matching the treemap
+  // and the ranked bars in this card. The cross-state chart below keeps the fixed
+  // order instead, so the same source sits in the same place in every row.
   stackedBar($("#mixBar"), rows.filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value)
     .map((r) => ({ label: r.label, value: r.value, color: r.color })), { fmt: mwh });
 
   // ---- ranked bars with direct value labels ----
