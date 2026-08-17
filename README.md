@@ -103,20 +103,22 @@ Built to the **Employ America Brand Guidelines 2025** — Deep Blue `#191E3A`, B
 Warm White `#F9F7F5` surfaces, Orange `#EF8C48` accents, Lato for headers and body, Montserrat for
 subheads.
 
+The site is **light mode only**, on the Warm White surface the brand specifies as its default.
+
 The eight chart colours are **derived** from the brand chart palette rather than used raw: several
 brand colours sit outside a legible lightness band or collapse into each other under colour-vision
-deficiency. `scripts/derive_palette.mjs` holds each brand colour's hue, moves only its lightness, and
-picks the steps that minimise deviation from the brand values while clearing the lightness-band,
-chroma, colour-blind-separation and contrast gates — separately for light and dark mode. Five of the
-eight land on the near-exact brand hex. Run it to see the report:
+deficiency (bright purple and blue came out at ΔE 1.9 under protanopia — indistinguishable).
+`scripts/derive_palette.mjs` holds each brand colour's hue, moves only its lightness, and picks the
+steps that minimise deviation from the brand values while clearing the lightness-band, chroma,
+colour-blind-separation and contrast gates. Five of the eight land on the near-exact brand hex. Run
+it to see the report — the Pages workflow runs it too, so a palette edit that breaks a gate fails CI:
 
 ```bash
 node scripts/derive_palette.mjs
 ```
 
 Accessibility: every chart has a table-view twin or direct value labels, marks are keyboard-focusable
-with the same readout as hover, identity is never carried by colour alone, and both themes are
-independently validated.
+with the same readout as hover, and identity is never carried by colour alone.
 
 ## Licence & attribution
 

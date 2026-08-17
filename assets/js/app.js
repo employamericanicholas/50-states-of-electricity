@@ -715,18 +715,6 @@ function wireUI() {
   $("#plantMore").addEventListener("click", () => { S.plantLimit += 250; renderPlants(); });
   $("#csvBtn").addEventListener("click", downloadCSV);
 
-  // theme
-  const applyTheme = (mode) => {
-    document.documentElement.dataset.theme = mode;
-    try { localStorage.setItem("50soe-theme", mode); } catch { /* private mode */ }
-    $("#themeBtn").setAttribute("aria-label",
-      mode === "dark" ? "Switch to light theme" : "Switch to dark theme");
-    renderAll();   // charts re-read the CSS custom properties
-  };
-  $("#themeBtn").addEventListener("click", () => {
-    applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
-  });
-
   // back/forward
   window.addEventListener("popstate", (e) => {
     const code = e.state?.code || new URLSearchParams(location.search).get("state") || "US";
@@ -737,15 +725,6 @@ function wireUI() {
 }
 
 async function main() {
-  // theme before first paint of charts
-  try {
-    const saved = localStorage.getItem("50soe-theme");
-    if (saved) document.documentElement.dataset.theme = saved;
-    else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      document.documentElement.dataset.theme = "dark";
-    }
-  } catch { /* ignore */ }
-
   try {
     const [index, meta] = await Promise.all([
       getJSON(`${DATA}/index.json`),

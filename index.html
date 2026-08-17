@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>50 States of Electricity — U.S. power generation and emissions, 2024</title>
 <meta name="description" content="Every U.S. power plant's 2024 generation and estimated CO2, by state, built from official U.S. Energy Information Administration data — including EIA's estimate of behind-the-meter solar.">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="light">
 <meta property="og:title" content="50 States of Electricity">
 <meta property="og:description" content="What each state's electricity is made of, plant by plant. Official EIA data for calendar year 2024.">
 <meta property="og:type" content="website">
@@ -20,18 +20,14 @@
 <!-- ════════════════════════════════ masthead ════════════════════════════ -->
 <header class="masthead">
   <div class="masthead__bar">
-    <!-- Wordmark-only lockup. The official eagle logotype is not reproduced here;
-         drop the real file in as assets/img/logo.svg and uncomment the <img> to
-         restore the full lockup (Brand Guidelines pp.6-7, finalfiles/logos). -->
+    <!-- Main logo, Warm White colourway for the Blue masthead. Vector paths
+         taken from Brand Guidelines 2025 p.5; see assets/img/README.md. -->
     <a class="logo" href="./" aria-label="Employ America — 50 States of Electricity home">
-      <!-- <img class="logo__mark" src="./assets/img/logo.svg" alt="" aria-hidden="true"> -->
-      <span class="logo__word">Employ<br>America</span>
+      <img class="logo__lockup" src="./assets/img/logo.svg" width="984" height="225"
+           alt="Employ America">
     </a>
     <div class="masthead__spacer"></div>
     <div class="masthead__meta" id="mastMeta">EIA data</div>
-    <button class="iconbtn" id="themeBtn" type="button" aria-label="Switch to dark theme">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6"/></svg>
-    </button>
   </div>
 </header>
 
@@ -307,7 +303,8 @@
   <div class="wrap">
     <div>
       <div class="foot__brand">
-        <span class="logo__word">Employ<br>America</span>
+        <img class="logo__lockup logo__lockup--foot" src="./assets/img/logo.svg"
+             width="984" height="225" alt="Employ America">
       </div>
       <p style="margin-top:14px">
         Strategies for the full employment of workers, resources, and technologies.

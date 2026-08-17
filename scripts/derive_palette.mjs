@@ -1,10 +1,14 @@
 /**
  * Derive a validated categorical fuel palette from the Employ America brand hues.
  *
- * Method (per the dataviz skill's "snap-to-passing"): hold each brand anchor's
- * OKLCH hue, move only its lightness, and pick the step per slot that maximises
- * the MINIMUM adjacent CVD deltaE (bottleneck DP over the fixed slot order).
- * Light and dark modes get their own steps from the same hue ramps.
+ * Method (per the "snap-to-passing" approach): hold each brand anchor's OKLCH
+ * hue and move only its lightness, picking the step per slot that stays closest
+ * to the brand value while every adjacent pair still clears the colour-vision
+ * and normal-vision gates (bottleneck DP over the fixed slot order).
+ *
+ * The site is light-mode only, so only the light palette is derived. The band
+ * and surface for a dark theme are kept in BAND/SURFACE below: re-adding one
+ * means running this for "dark" and taking its own steps, never flipping these.
  *
  * Run: node scripts/derive_palette.mjs
  */
@@ -225,8 +229,9 @@ function optimise(mode) {
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────
+const MODES = ["light"];   // light-mode-only site
 const result = {};
-for (const mode of ["light", "dark"]) {
+for (const mode of MODES) {
   const { hexes, bottleneck, totalDev } = optimise(mode);
   result[mode] = hexes;
   console.log(`\n(total deviation from brand anchors: ${totalDev.toFixed(1)})`);
@@ -250,9 +255,8 @@ for (const mode of ["light", "dark"]) {
 }
 
 console.log(`\n${"=".repeat(78)}\nCSS custom properties\n${"=".repeat(78)}`);
-for (const mode of ["light", "dark"]) {
-  console.log(`/* ${mode} */`);
-  SLOTS.forEach((s, i) => console.log(`  --fuel-${s.key.replace(/_/g, "-")}: ${result[mode][i]};`));
+for (const mode of MODES) {
+  SLOTS.forEach((s, i) => console.log(`  --fuel-${s.key}: ${result[mode][i]};`));
 }
-console.log("\nJS palette arrays:");
-for (const mode of ["light", "dark"]) console.log(`${mode}: ${JSON.stringify(result[mode])}`);
+console.log("\nJS palette array:");
+for (const mode of MODES) console.log(`${mode}: ${JSON.stringify(result[mode])}`);
