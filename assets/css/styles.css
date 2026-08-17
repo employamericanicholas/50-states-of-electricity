@@ -208,17 +208,19 @@ button, select, input { font: inherit; color: inherit; }
 .headline { display: grid; grid-template-columns: minmax(230px, 300px) 1fr; gap: 26px; align-items: start; }
 @media (max-width: 800px) { .headline { grid-template-columns: 1fr; } }
 
-/* Dark Purple (Brand Guidelines p.21). Warm White clears 11.6:1 on it, the label
-   step 5.9:1, and the card itself sits at 11.6:1 against the page. */
+/* Brand Blue, matching the masthead and footer. Warm White clears 8.6:1 on it and
+   the card sits at 8.6:1 against the page; the label step below is lightened to
+   clear 4.5:1, which it did not on this blue at its previous value. */
 .figure-hero {
-  background: var(--dark-purple); color: var(--warm-white);
+  background: var(--blue); color: var(--warm-white);
   border-radius: var(--radius); padding: 22px 22px 20px;
 }
 /* inside a card, where the card already supplies the frame */
 .figure-hero--plain { padding: 18px 20px 16px; }
 .figure-hero__label {
   font: 600 10.5px/1.2 var(--font-sub); text-transform: uppercase;
-  letter-spacing: .1em; color: #aab2cc; margin-bottom: 10px;
+  /* #aab2cc reached only 4.36:1 on the Blue card, short of 4.5:1 at 10.5px */
+  letter-spacing: .1em; color: #bcc4d8; margin-bottom: 10px;
 }
 .figure-hero__value {
   font: 700 clamp(44px, 5.4vw, 62px)/0.94 var(--font-head);
@@ -259,6 +261,9 @@ button, select, input { font: inherit; color: inherit; }
 .chart text { font-family: var(--font-body); }
 .grid-line { stroke: var(--rule); stroke-width: 1; }
 .axis-text { font-size: 11px; fill: var(--ink-faint); font-variant-numeric: tabular-nums; }
+/* Source names under the stacked bar: these are read, not skimmed, so they take
+   body ink rather than the recessive axis grey. */
+.axis-text--strong { fill: var(--ink); }
 .mark { transition: opacity .12s ease; }
 .mark:hover, .mark[data-hover="1"] { opacity: .82; }
 .mark-label { font-size: 11.5px; font-weight: 700; fill: var(--ink-strong); }

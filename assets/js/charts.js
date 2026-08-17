@@ -409,13 +409,14 @@ export function stackedRows(host, rows, opts = {}) {
 const shortLabel = (s) => s.replace(/\s*\(.*\)\s*$/, "");
 
 export function stackedBar(host, parts, opts = {}) {
-  const { height = 46, fmt = String, pctSize = 14, labelSize = 13 } = opts;
+  const { height = 46, fmt = String, pctSize = 14, labelSize = 15 } = opts;
   clear(host);
   const pos = parts.filter((p) => p.value > 0);
   if (!pos.length) { host.innerHTML = '<p class="empty">Nothing to show.</p>'; return; }
 
   const W = hostWidth(host);
-  const H = height + 24;
+  // room for the label baseline at height + labelSize + 4, plus its descenders
+  const H = height + labelSize + 10;
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, role: "group" }, host);
   const sum = pos.reduce((s, p) => s + p.value, 0);
   let x = 0;
@@ -450,7 +451,7 @@ export function stackedBar(host, parts, opts = {}) {
     // must fit inside its own segment, clear the previous name, and not repeat one
     if (nameW < w - 6 && centre - nameW / 2 > lastLabelRight + 8 && !drawnNames.has(name)) {
       text(svg, name, { x: centre, y: height + labelSize + 4, "text-anchor": "middle",
-                        class: "axis-text", "font-size": labelSize });
+                        class: "axis-text axis-text--strong", "font-size": labelSize });
       lastLabelRight = centre + nameW / 2;
       drawnNames.add(name);
     }

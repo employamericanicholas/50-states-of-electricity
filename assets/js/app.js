@@ -9,7 +9,7 @@
 // new app.js could load against a stale charts.js and fail at import time —
 // which no try/catch inside the module can see. Bump both together.
 import { treemap, hbar, stackedRows, stackedBar, clear, onResize, hideTip, pctLabel }
-  from "./charts.js?v=10";
+  from "./charts.js?v=11";
 
 const DATA = "./data";
 const $ = (sel, root = document) => root.querySelector(sel);
