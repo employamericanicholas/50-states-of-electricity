@@ -178,6 +178,108 @@
     </div>
   </section>
 
+  <!-- ═══════════════════════ by energy source ═══════════════════════ -->
+  <section class="section" id="bysource" aria-labelledby="srcRankTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">By energy source</p>
+      <h2 class="section__title" id="srcRankTitle">Which states lead on each source</h2>
+      <p class="section__sub">
+        Pick an energy source, then rank the states either by how much they generated from it or by
+        how large a share of their own electricity it accounts for. The two answers are often very
+        different: a big state can lead on total output while a small one leads on share.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="tabs" role="tablist" aria-label="Energy source" id="srcTabs"></div>
+
+      <div class="card__head" style="margin-top:16px">
+        <h3 class="card__title" id="srcRankHeading">—</h3>
+        <div class="card__spacer"></div>
+        <div class="toggle" id="srcMetric" role="group" aria-label="Ranking metric">
+          <button type="button" data-metric="gwh" aria-pressed="true">Total GWh</button>
+          <button type="button" data-metric="share" aria-pressed="false">% of state's mix</button>
+        </div>
+        <div class="toggle" id="srcView" role="group" aria-label="View">
+          <button type="button" data-view="chart" aria-pressed="true">Chart</button>
+          <button type="button" data-view="table" aria-pressed="false">Table</button>
+        </div>
+      </div>
+      <p class="card__note" id="srcRankNote"></p>
+
+      <div id="srcChartView">
+        <div class="chart" id="srcRankChart"></div>
+      </div>
+      <div id="srcTableView" hidden>
+        <div class="tablewrap tablewrap--tall">
+          <table class="data" id="srcTable">
+            <caption id="srcTableCaption"></caption>
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">State</th>
+                <th scope="col" class="num">Generation (GWh)</th>
+                <th scope="col" class="num">Share of state's mix</th>
+                <th scope="col" class="num">State total (GWh)</th>
+              </tr>
+            </thead>
+            <tbody id="srcTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ demand & trade ═══════════════════════ -->
+  <section class="section" id="demand" aria-labelledby="demandTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Demand &amp; interstate trade</p>
+      <h2 class="section__title" id="demandTitle">
+        What <span id="demandGeo">the United States</span> actually used — and traded
+      </h2>
+      <p class="section__sub">
+        Generation is not consumption. This is the other side of the ledger: what customers used, what
+        was lost moving it, and how much had to come from outside the state's borders.
+      </p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="card">
+        <h3 class="card__title">Where the electricity came from, and went</h3>
+        <p class="card__note" id="demandBalanceNote"></p>
+        <div class="chart" id="demandBalance"></div>
+        <dl class="kv" id="demandGrid" style="margin-top:18px"></dl>
+      </div>
+      <div class="card">
+        <h3 class="card__title" id="depTitle">Import dependence</h3>
+        <p class="card__note" id="demandDepNote"></p>
+        <div class="figure-hero figure-hero--plain">
+          <p class="figure-hero__label" id="depLabel">Net imports as a share of electricity used</p>
+          <span class="figure-hero__value" id="depValue">—</span><span class="figure-hero__unit">%</span>
+          <p class="figure-hero__sub" id="depSub"></p>
+        </div>
+        <div class="callout" style="margin-top:16px">
+          <p class="callout__title">Which states did it import from?</p>
+          <p id="depCaveat"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__head">
+        <h3 class="card__title">All states ranked</h3>
+        <div class="card__spacer"></div>
+        <div class="toggle" id="demandMetric" role="group" aria-label="Demand ranking metric">
+          <button type="button" data-metric="consumed" aria-pressed="true">Demand (GWh)</button>
+          <button type="button" data-metric="share" aria-pressed="false">Import dependence (%)</button>
+          <button type="button" data-metric="net" aria-pressed="false">Net imports (GWh)</button>
+        </div>
+      </div>
+      <p class="card__note" id="demandRankNote"></p>
+      <div class="chart" id="demandRankChart"></div>
+    </div>
+  </section>
+
   <!-- ═══════════════════════ plants ═══════════════════════ -->
   <section class="section" id="plants" aria-labelledby="plantTitle">
     <div class="section__head">

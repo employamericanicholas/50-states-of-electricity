@@ -147,6 +147,51 @@ def main() -> int:
         check(not any(p["primary"] == "solar_small_scale" for p in st["plants"]),
               f"{tag}: small-scale solar must not appear as a plant — it has no plant-level data")
 
+        # ── demand & trade ──────────────────────────────────────────────────
+        d = st.get("demand")
+        check(d is not None, f"{tag}: no demand block")
+        if d:
+            # supply must equal disposition
+            lhs = d["generation_mwh"] + d["net_imports_mwh"]
+            rhs = d["consumed_mwh"] + d["losses_mwh"] + d["unaccounted_mwh"]
+            check(close(lhs, rhs, 0.01),
+                  f"{tag}: generation + net imports ({lhs:,.0f}) != consumed + losses + "
+                  f"unaccounted ({rhs:,.0f})")
+            check(close(d["consumed_mwh"], d["retail_sales_mwh"] + d["direct_use_mwh"]),
+                  f"{tag}: consumed != retail sales + direct use")
+            check(close(d["net_imports_mwh"],
+                        d["net_interstate_imports_mwh"] + d["net_intl_imports_mwh"]),
+                  f"{tag}: net imports != interstate + international")
+            check(close(d["available_mwh"], d["generation_mwh"] + d["net_imports_mwh"]),
+                  f"{tag}: available != generation + net imports")
+            # the flag, the sign of net imports and the sign of the share must agree,
+            # or the page would describe an exporter as import-dependent
+            check(d["is_net_importer"] == (d["net_imports_mwh"] > 0),
+                  f"{tag}: is_net_importer disagrees with the sign of net imports")
+            if d["import_share_pct"] is not None:
+                check(d["is_net_importer"] == (d["import_share_pct"] > 0),
+                      f"{tag}: import_share_pct sign disagrees with is_net_importer")
+            check(d["generation_mwh"] >= 0 and d["consumed_mwh"] >= 0,
+                  f"{tag}: negative generation or consumption")
+            # in-state generation here should match the mix total, less behind-the
+            # -meter solar, which is not part of utility-scale supply
+            check(close(d["generation_mwh"], st["utility_scale_mwh"], 0.02),
+                  f"{tag}: demand-side generation {d['generation_mwh']:,.0f} != "
+                  f"utility-scale mix total {st['utility_scale_mwh']:,.0f}")
+
+            # index row carries the same demand figures
+            rd = row.get("demand")
+            check(rd is not None, f"{tag}: index row missing demand")
+            if rd:
+                for k in ("consumed_mwh", "net_imports_mwh", "import_share_pct", "generation_mwh"):
+                    check(rd[k] == d[k], f"{tag}: index demand.{k} disagrees with the state file")
+
+        # detailed sources travel with the index row, for the by-source rankings
+        check(row.get("sources") is not None, f"{tag}: index row missing detailed sources")
+        if row.get("sources"):
+            check(len(row["sources"]) == len(st["sources"]),
+                  f"{tag}: index sources count disagrees with the state file")
+
     if worst_ratio[0]:
         print(f"  widest per-state CO2 gap: {worst_ratio[0]} at {worst_ratio[1]:.1%} of EIA's figure")
 

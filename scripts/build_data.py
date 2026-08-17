@@ -554,6 +554,77 @@ def get_plant_meta(key: str, use_cache: bool) -> dict:
     return meta
 
 
+SD_COLS = [
+    "total-net-generation", "total-international-imports", "total-international-exports",
+    "total-supply", "total-elect-indust", "direct-use", "estimated-losses",
+    "net-interstate-trade", "unaccounted", "total-disposition",
+]
+
+
+def get_supply_disposition(key: str, use_cache: bool) -> dict:
+    """
+    Where each state's electricity came from and where it went (EIA State
+    Electricity Profiles, supply & disposition).
+
+    Sign convention worth pinning down: EIA labels `net-interstate-trade`
+    "Net Interstate Imports", but it sits on the DISPOSITION side of the
+    balance, so a net importer carries a NEGATIVE value. Verified against the
+    accounting identity for 2024 -- California -53.2 TWh (a well-known net
+    importer) and Wyoming +21.0 TWh (generates 40.7 TWh against 17.2 TWh of
+    retail sales, so a heavy net exporter). We therefore flip the sign into
+    `net_interstate_imports_mwh`, where positive means imported.
+    """
+    rows = fetch_all(
+        key,
+        "electricity/state-electricity-profiles/source-disposition/data/",
+        [("frequency", "annual"), ("start", str(YEAR)), ("end", str(YEAR))]
+        + [("data[]", c) for c in SD_COLS],
+        use_cache,
+        label="supply & disposition by state",
+    )
+    out: dict[str, dict] = {}
+    for r in rows:
+        st = r.get("state") or r.get("stateid")
+        if st not in STATES and st != "US":
+            continue
+        out[st] = {c: num(r.get(c)) for c in SD_COLS}
+    return out
+
+
+def demand_block(sd: dict | None) -> dict | None:
+    """Turn one supply/disposition row into the figures the dashboard shows."""
+    if not sd:
+        return None
+    gen = sd["total-net-generation"]
+    intl_in, intl_out = sd["total-international-imports"], sd["total-international-exports"]
+    net_interstate = -sd["net-interstate-trade"]          # flip: positive = imported
+    net_intl = intl_in - intl_out
+    net_imports = net_interstate + net_intl
+    retail, direct, losses = sd["total-elect-indust"], sd["direct-use"], sd["estimated-losses"]
+    consumed = retail + direct
+    # Everything the state had available to use: own generation plus net imports.
+    available = gen + net_imports
+    return {
+        "generation_mwh": r2(gen),
+        "retail_sales_mwh": r2(retail),
+        "direct_use_mwh": r2(direct),
+        "consumed_mwh": r2(consumed),
+        "losses_mwh": r2(losses),
+        "requirement_mwh": r2(consumed + losses),
+        "intl_imports_mwh": r2(intl_in),
+        "intl_exports_mwh": r2(intl_out),
+        "net_interstate_imports_mwh": r2(net_interstate),
+        "net_intl_imports_mwh": r2(net_intl),
+        "net_imports_mwh": r2(net_imports),
+        "available_mwh": r2(available),
+        "unaccounted_mwh": r2(sd["unaccounted"]),
+        # Share of the electricity a state used that came from outside its borders.
+        # Negative for net exporters, so it is only meaningful for importers.
+        "import_share_pct": r2(net_imports / available * 100, 2) if available > 0 else None,
+        "is_net_importer": net_imports > 0,
+    }
+
+
 def get_official_co2(key: str, use_cache: bool) -> dict:
     """EIA's own electric-power CO2 by state and fuel (thousand metric tons)."""
     rows = fetch_all(
@@ -636,6 +707,7 @@ def build():
     plants, plant_warnings = get_plants(key, use_cache)
     meta = get_plant_meta(key, use_cache)
     official = get_official_co2(key, use_cache)
+    supply = get_supply_disposition(key, use_cache)
 
     warnings = mix_warnings + plant_warnings
     print()
@@ -718,6 +790,7 @@ def build():
                 "unattributed_mmbtu": r2(sum(p["co2_unattributed_mmbtu"] for p in plist), 0),
             },
             "plant_count": len(plist),
+            "demand": demand_block(supply.get(code)),
             "plants": plist,
         }
         if summary["total_mwh"]:
@@ -739,9 +812,11 @@ def build():
             "plant_count": len(plist),
             "slots": slot_block(by_detail),
             # Detailed sources travel with the index too, so the cross-state
-            # chart can name what is inside its "Other" slot. Petroleum is 66%
-            # of Hawaii's generation but only ever reads as "Other" otherwise.
+            # chart can name what is inside its "Other" slot, and the by-source
+            # rankings can be built without loading 51 state files. Petroleum is
+            # 66% of Hawaii's generation but only ever reads as "Other" otherwise.
             "sources": detail_block(by_detail),
+            "demand": demand_block(supply.get(code)),
         })
 
     # ── national ────────────────────────────────────────────────────────────
@@ -770,6 +845,22 @@ def build():
             "unattributed_mmbtu": r2(sum(p["co2_unattributed_mmbtu"] for p in all_plants), 0),
         },
         "plant_count": len(all_plants),
+        # National: interstate trade nets out across states, so only the
+        # international balance is a real import. Summed rather than taken from a
+        # US row so it always agrees with the state figures shown alongside.
+        "demand": (lambda ds: {
+            **{k: r2(sum(d[k] for d in ds)) for k in
+               ("generation_mwh", "retail_sales_mwh", "direct_use_mwh", "consumed_mwh",
+                "losses_mwh", "requirement_mwh", "intl_imports_mwh", "intl_exports_mwh",
+                "net_interstate_imports_mwh", "net_intl_imports_mwh", "unaccounted_mwh")},
+            "net_imports_mwh": r2(sum(d["net_intl_imports_mwh"] for d in ds)),
+            "available_mwh": r2(sum(d["generation_mwh"] + d["net_intl_imports_mwh"] for d in ds)),
+            "import_share_pct": r2(
+                sum(d["net_intl_imports_mwh"] for d in ds)
+                / sum(d["generation_mwh"] + d["net_intl_imports_mwh"] for d in ds) * 100, 2),
+            "is_net_importer": sum(d["net_intl_imports_mwh"] for d in ds) > 0,
+            "interstate_residual_mwh": r2(sum(d["net_interstate_imports_mwh"] for d in ds)),
+        })([d for d in (demand_block(supply.get(c)) for c in STATES) if d]),
         "co2_kg_per_mwh": r2(us_est * 1000 / us_summary["total_mwh"], 1) if us_summary["total_mwh"] else None,
         # the national file carries the 300 largest plants; per-state files hold
         # every plant, so the landing view stays small
@@ -834,6 +925,13 @@ def build():
                 "used_for": "Plant operator, county, coordinates, nameplate capacity, balancing authority.",
             },
             {
+                "id": "disposition",
+                "title": "EIA, State Electricity Profiles — Supply and disposition of electricity",
+                "route": "electricity/state-electricity-profiles/source-disposition",
+                "url": "https://www.eia.gov/opendata/browser/electricity/state-electricity-profiles",
+                "used_for": "State electricity demand (retail sales, direct use), transmission and distribution losses, international imports and exports, and net interstate trade.",
+            },
+            {
                 "id": "emissions",
                 "title": "EIA, State Electricity Profiles — Emissions by state by fuel",
                 "route": "electricity/state-electricity-profiles/emissions-by-state-by-fuel",
@@ -874,11 +972,28 @@ def build():
                 "the unattributed MMBtu is reported so the gap is visible. Every state view shows our "
                 "estimate next to EIA's official state total."
             ),
+            "demand_and_trade": (
+                "Demand is what a state's customers actually used: retail sales to end users plus "
+                "electricity generated and consumed on site by commercial and industrial facilities "
+                "(direct use). Transmission and distribution losses are reported separately, and the "
+                "three together are the state's total requirement. Net imports are what the state had "
+                "to bring in beyond its own generation: net interstate trade plus net international "
+                "trade with Canada and Mexico. EIA reports interstate trade on the disposition side of "
+                "the balance, so a net importer carries a negative value in the raw series; we flip "
+                "the sign so positive always means imported, and verified it against the accounting "
+                "identity (California nets -53.2 TWh in the raw series and is a well-known net "
+                "importer; Wyoming nets +21.0 TWh against just 17.2 TWh of retail sales). Import "
+                "dependence is net imports as a share of all electricity the state had available. "
+                "EIA does NOT publish state-to-state electricity flows, so this dashboard does not "
+                "claim to say which particular states a given state imported from - see the caveats."
+            ),
             "caveats": [
                 "Generation is in-state production, not consumption: it excludes imports and exports, so a state's mix is not the mix its customers consume.",
                 "Pumped-storage hydro is net of pumping load and is usually negative; it is a storage round-trip, not a source of energy.",
                 "'Other' net generation can be negative in some states, which is why the treemap omits negative values and the bar chart shows them.",
                 "Plant coordinates, operator and capacity come from the December 2024 generator inventory; plants that retired mid-year may generate in EIA-923 without appearing there.",
+                "Which specific states a state imported from is not shown, because EIA publishes no state-to-state electricity flow data. Only each state's NET position is known. Power flows over an interconnected grid operated by balancing authorities whose footprints cross state lines - PJM alone spans 13 states - so a state-to-state matrix cannot be derived from published state totals without inventing it. EIA's hourly balancing-authority interchange series (electricity/rto/interchange-data) is the closest real directional data, but it is authority-to-authority, not state-to-state.",
+                "Net imports can be negative: that state is a net exporter, and its import dependence is not meaningful.",
             ],
         },
         "co2_factors": used_factors,

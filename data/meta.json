@@ -1,6 +1,6 @@
 {
   "year": 2024,
-  "generated_utc": "2026-08-17T19:47:55Z",
+  "generated_utc": "2026-08-17T20:52:02Z",
   "api": "EIA API v2 (https://api.eia.gov/v2/)",
   "sources": [
     {
@@ -28,6 +28,13 @@
       "used_for": "Plant operator, county, coordinates, nameplate capacity, balancing authority."
     },
     {
+      "id": "disposition",
+      "title": "EIA, State Electricity Profiles \u2014 Supply and disposition of electricity",
+      "route": "electricity/state-electricity-profiles/source-disposition",
+      "url": "https://www.eia.gov/opendata/browser/electricity/state-electricity-profiles",
+      "used_for": "State electricity demand (retail sales, direct use), transmission and distribution losses, international imports and exports, and net interstate trade."
+    },
+    {
       "id": "emissions",
       "title": "EIA, State Electricity Profiles \u2014 Emissions by state by fuel",
       "route": "electricity/state-electricity-profiles/emissions-by-state-by-fuel",
@@ -51,11 +58,14 @@
     "generation": "Net generation for calendar year 2024, all sectors, from Form EIA-923 as served by the EIA API. State mixes use the 13 mutually exclusive energy-source codes that sum exactly to EIA's own all-fuels total; the build verifies that identity for every state.",
     "small_scale_solar": "Behind-the-meter solar is EIA's own estimate of small-scale (<1 MW) distributed solar PV generation, energy-source code DPV, published by state and sector. It is not part of utility-scale net generation, so it is reported separately and added on top of the utility-scale total rather than being mixed into it. It is an EIA model estimate, not metered generation, and no plant-level detail exists for it.",
     "co2": "Per-plant CO2 is an estimate, not a measurement. For each plant and each fuel it burns, CO2 = fuel consumed (MMBtu, Form EIA-923) x the EIA CO2 emission factor for that specific fuel. Fuel codes are read at EIA's finest granularity, so bituminous, subbituminous and lignite coal each get their own factor rather than a coal average. Two bases are reported: the headline per-plant figure uses fuel consumed FOR ELECTRICITY GENERATION, which excludes fuel burned for useful thermal output at combined-heat-and-power plants and so reflects electricity alone; the all-fuel basis adds that thermal fuel back and is what we compare against EIA's own published state total. Biogenic CO2 from biomass is excluded from both, matching EIA's state electric-power CO2 series. Nuclear, wind, solar and water are zero by construction. Fuels for which EIA publishes no single applicable factor - geothermal (which differs between steam and binary-cycle plants), blast-furnace and other manufactured gases, purchased steam and waste heat - are left unattributed rather than guessed at, and the unattributed MMBtu is reported so the gap is visible. Every state view shows our estimate next to EIA's official state total.",
+    "demand_and_trade": "Demand is what a state's customers actually used: retail sales to end users plus electricity generated and consumed on site by commercial and industrial facilities (direct use). Transmission and distribution losses are reported separately, and the three together are the state's total requirement. Net imports are what the state had to bring in beyond its own generation: net interstate trade plus net international trade with Canada and Mexico. EIA reports interstate trade on the disposition side of the balance, so a net importer carries a negative value in the raw series; we flip the sign so positive always means imported, and verified it against the accounting identity (California nets -53.2 TWh in the raw series and is a well-known net importer; Wyoming nets +21.0 TWh against just 17.2 TWh of retail sales). Import dependence is net imports as a share of all electricity the state had available. EIA does NOT publish state-to-state electricity flows, so this dashboard does not claim to say which particular states a given state imported from - see the caveats.",
     "caveats": [
       "Generation is in-state production, not consumption: it excludes imports and exports, so a state's mix is not the mix its customers consume.",
       "Pumped-storage hydro is net of pumping load and is usually negative; it is a storage round-trip, not a source of energy.",
       "'Other' net generation can be negative in some states, which is why the treemap omits negative values and the bar chart shows them.",
-      "Plant coordinates, operator and capacity come from the December 2024 generator inventory; plants that retired mid-year may generate in EIA-923 without appearing there."
+      "Plant coordinates, operator and capacity come from the December 2024 generator inventory; plants that retired mid-year may generate in EIA-923 without appearing there.",
+      "Which specific states a state imported from is not shown, because EIA publishes no state-to-state electricity flow data. Only each state's NET position is known. Power flows over an interconnected grid operated by balancing authorities whose footprints cross state lines - PJM alone spans 13 states - so a state-to-state matrix cannot be derived from published state totals without inventing it. EIA's hourly balancing-authority interchange series (electricity/rto/interchange-data) is the closest real directional data, but it is authority-to-authority, not state-to-state.",
+      "Net imports can be negative: that state is a net exporter, and its import dependence is not meaningful."
     ]
   },
   "co2_factors": {

@@ -19,6 +19,10 @@ const S = {
   basis: "elec",      // "elec" = fuel burned for electricity | "all" = all fuel burned
   mixView: "chart",
   rankSort: "carbon_free_pct",
+  srcKey: "wind",        // selected energy-source tab
+  srcMetric: "gwh",      // "gwh" = total generation | "share" = % of state's mix
+  srcView: "chart",
+  demandMetric: "consumed",
   plantSort: { key: "gen_mwh", dir: -1 },
   plantQuery: "",
   plantLimit: 100,
@@ -293,6 +297,290 @@ function slotLegend(host) {
     }
     host.appendChild(li);
   }
+}
+
+/* ==========================================================================
+   Render: by energy source — rank all states on one source
+   ========================================================================== */
+const gwh = (mwh, d = 1) => nf(mwh / 1e3, d);
+
+/** [{ code, name, mwh, share, total }] for one detailed source, across states. */
+function sourceRows(key) {
+  const out = [];
+  for (const s of S.index.states) {
+    const row = (s.sources || []).find((x) => x.key === key);
+    const mwh = row ? row.mwh : 0;
+    const pos = (s.sources || []).reduce((a, x) => a + (x.mwh > 0 ? x.mwh : 0), 0);
+    out.push({
+      code: s.code, name: s.name, mwh,
+      share: pos > 0 ? (mwh / pos) * 100 : 0,
+      total: s.total_mwh,
+    });
+  }
+  return out;
+}
+
+function renderSourceTabs() {
+  const host = $("#srcTabs");
+  clear(host);
+  for (const key of S.index.detail_order) {
+    // only offer sources that actually generated somewhere
+    const any = S.index.states.some((s) => (s.sources || []).some((x) => x.key === key && x.mwh !== 0));
+    if (!any) continue;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(key === S.srcKey));
+    b.dataset.key = key;
+    const i = document.createElement("i");
+    i.style.background = slotColor(S.index.detail_to_slot[key]);
+    const t = document.createElement("span");
+    t.textContent = S.index.detail_labels[key];
+    b.append(i, t);
+    b.addEventListener("click", () => { S.srcKey = key; renderSourceRank(); });
+    host.appendChild(b);
+  }
+}
+
+function renderSourceRank() {
+  // keep tab selection in sync
+  for (const b of $$("#srcTabs button")) {
+    b.setAttribute("aria-selected", String(b.dataset.key === S.srcKey));
+  }
+  for (const b of $$("#srcMetric button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.metric === S.srcMetric));
+  }
+
+  const label = S.index.detail_labels[S.srcKey];
+  const color = slotColor(S.index.detail_to_slot[S.srcKey]);
+  const byGwh = S.srcMetric === "gwh";
+  const rows = sourceRows(S.srcKey)
+    .filter((r) => r.mwh !== 0)
+    .sort((a, b) => (byGwh ? b.mwh - a.mwh : b.share - a.share));
+
+  $("#srcRankHeading").textContent = byGwh
+    ? `States by total ${label.toLowerCase()} generation`
+    : `States by ${label.toLowerCase()} as a share of their own mix`;
+
+  const natTotal = sourceRows(S.srcKey).reduce((a, r) => a + r.mwh, 0);
+  $("#srcRankNote").textContent = byGwh
+    ? `Total generation from ${label.toLowerCase()} in 2024, in gigawatt-hours. `
+      + `${rows.length} states generated from this source; the national total was ${gwh(natTotal)} GWh.`
+    : `${label} as a percentage of each state's own total generation. This is the same data ranked `
+      + `a different way — a small state can top this list while barely registering on total output.`;
+
+  hbar($("#srcRankChart"), rows.map((r) => ({
+    key: r.code,
+    label: r.name,
+    value: byGwh ? r.mwh / 1e3 : r.share,
+    color,
+    sub: byGwh ? `${nf(r.share, 1)}% of ${r.name}'s generation`
+               : `${gwh(r.mwh)} GWh of ${gwh(r.total)} GWh total`,
+    meta: S.srcKey === "solar_small_scale"
+      ? "EIA model estimate of distributed solar under 1 MW." : null,
+  })), {
+    fmt: byGwh ? (v) => `${nf(v, 1)} GWh` : (v) => `${nf(v, 1)}%`,
+    labelW: 150, rowH: 26,
+    highlight: S.code === "US" ? null : S.code,
+    onClick: (d) => selectGeo(d.key),
+  });
+
+  // table twin
+  const tb = $("#srcTableBody");
+  clear(tb);
+  rows.forEach((r, i) => {
+    const tr = document.createElement("tr");
+    const rank = document.createElement("td");
+    rank.className = "num t-muted";
+    rank.textContent = String(i + 1);
+    const th = document.createElement("th");
+    th.scope = "row";
+    th.textContent = r.name;
+    const c1 = document.createElement("td");
+    c1.className = "num";
+    c1.textContent = gwh(r.mwh);
+    const c2 = document.createElement("td");
+    c2.className = "num";
+    c2.textContent = `${nf(r.share, 2)}%`;
+    const c3 = document.createElement("td");
+    c3.className = "num t-muted";
+    c3.textContent = gwh(r.total);
+    tr.append(rank, th, c1, c2, c3);
+    tb.appendChild(tr);
+  });
+  $("#srcTableCaption").textContent =
+    `${label}, 2024, by state — ranked by ${byGwh ? "total generation" : "share of the state's own mix"}. `
+    + `Source: EIA Form EIA-923 via the EIA API.`;
+}
+
+/* ==========================================================================
+   Render: demand & interstate trade
+   ========================================================================== */
+const DEMAND_METRICS = {
+  consumed: {
+    label: "Demand (GWh)", get: (d) => d.consumed_mwh / 1e3,
+    fmt: (v) => `${nf(v, 0)} GWh`,
+    note: "Electricity used by customers in 2024 — retail sales to end users plus on-site "
+        + "generation consumed directly by commercial and industrial facilities.",
+  },
+  share: {
+    label: "Import dependence (%)", get: (d) => d.import_share_pct,
+    fmt: (v) => `${nf(v, 1)}%`,
+    note: "Net imports as a share of all electricity the state had available. Negative bars are net "
+        + "exporters — they sent more out than they brought in.",
+  },
+  net: {
+    label: "Net imports (GWh)", get: (d) => d.net_imports_mwh / 1e3,
+    fmt: (v) => `${nf(v, 0)} GWh`,
+    note: "Net electricity brought in from other states plus net international trade. Negative bars "
+        + "are net exporters.",
+  },
+};
+
+function renderDemand() {
+  const d = S.geo.demand;
+  const host = $("#demandGrid");
+  clear(host);
+
+  if (!d) {
+    $("#demandBalance").innerHTML = '<p class="empty">No supply and disposition data for this geography.</p>';
+    $("#depValue").textContent = "—";
+    $("#depSub").textContent = "";
+    $("#demandBalanceNote").textContent = "";
+    return;
+  }
+
+  const isUS = S.code === "US";
+
+  // ---- supply/disposition as two stacked bars ----
+  $("#demandBalanceNote").textContent =
+    `Both bars total the same amount, ${gwh(d.available_mwh)} GWh. The top bar is where the `
+    + `electricity came from, the bottom is where it went.`;
+
+  const supplyParts = [
+    { label: "In-state generation", value: d.generation_mwh, color: slotColor("hydro") },
+    { label: isUS ? "Net imports from Canada & Mexico" : "Net imports from other states",
+      value: Math.max(0, isUS ? d.net_intl_imports_mwh : d.net_interstate_imports_mwh),
+      color: slotColor("gas") },
+  ];
+  if (!isUS && d.net_intl_imports_mwh > 0) {
+    supplyParts.push({ label: "Net international imports",
+                       value: d.net_intl_imports_mwh, color: slotColor("solar_btm") });
+  }
+  const dispositionParts = [
+    { label: "Retail sales to customers", value: d.retail_sales_mwh, color: slotColor("nuclear") },
+    { label: "Direct use on site", value: d.direct_use_mwh, color: slotColor("wind") },
+    { label: "Transmission & distribution losses", value: d.losses_mwh, color: slotColor("coal") },
+  ];
+  const exported = -Math.min(0, isUS ? d.net_intl_imports_mwh : d.net_interstate_imports_mwh);
+  if (exported > 0) {
+    dispositionParts.push({ label: "Net exports", value: exported, color: slotColor("solar_u") });
+  }
+  if (d.unaccounted_mwh > 0) {
+    dispositionParts.push({ label: "Unaccounted", value: d.unaccounted_mwh, color: slotColor("other") });
+  }
+
+  const wrap = $("#demandBalance");
+  clear(wrap);
+  for (const [title, parts] of [["Supply", supplyParts], ["Disposition", dispositionParts]]) {
+    const h = document.createElement("p");
+    h.className = "card__note";
+    h.style.margin = "10px 0 4px";
+    h.textContent = title;
+    const box = document.createElement("div");
+    box.className = "chart";
+    wrap.append(h, box);
+    stackedBar(box, parts.filter((p) => p.value > 0), { fmt: (v) => `${gwh(v)} GWh`, height: 38 });
+  }
+
+  // ---- key figures ----
+  const items = [
+    { dt: "Electricity demand", dd: `${gwh(d.consumed_mwh, 0)} GWh`,
+      small: "Retail sales plus direct use." },
+    { dt: "In-state generation", dd: `${gwh(d.generation_mwh, 0)} GWh`,
+      small: "What the state's own plants produced." },
+    { dt: d.net_imports_mwh >= 0 ? "Net imports" : "Net exports",
+      dd: `${gwh(Math.abs(d.net_imports_mwh), 0)} GWh`,
+      small: isUS ? "International trade only; interstate flows net out."
+                  : "Interstate plus international, net." },
+    { dt: "Losses in delivery", dd: `${gwh(d.losses_mwh, 0)} GWh`,
+      small: `${nf(d.losses_mwh / d.available_mwh * 100, 1)}% of electricity available.` },
+  ];
+  for (const it of items) {
+    const div = document.createElement("div");
+    const dt = document.createElement("dt");
+    dt.textContent = it.dt;
+    const dd = document.createElement("dd");
+    dd.textContent = it.dd;
+    const sm = document.createElement("small");
+    sm.textContent = it.small;
+    dd.appendChild(sm);
+    div.append(dt, dd);
+    host.appendChild(div);
+  }
+
+  // ---- trade position hero. Label follows the direction of trade: calling a
+  // net exporter's figure "import dependence" would state the opposite of fact.
+  const share = d.import_share_pct;
+  const imp = d.is_net_importer;
+  $("#depTitle").textContent = imp ? "Import dependence" : "Net export position";
+  $("#depLabel").textContent = imp
+    ? "Net imports as a share of electricity used"
+    : "Net exports as a share of electricity generated";
+  $("#depValue").textContent = share === null ? "—" : nf(Math.abs(share), 1);
+
+  const sub = $("#depSub");
+  clear(sub);
+  if (share !== null) {
+    const b = document.createElement("b");
+    b.textContent = imp ? "net importer" : "net exporter";
+    sub.append(
+      document.createTextNode(`${S.geo.name} was a `), b,
+      document.createTextNode(imp
+        ? ` in 2024, bringing in ${gwh(d.net_imports_mwh, 0)} GWh more than it sent out.`
+        : ` in 2024, sending out ${gwh(-d.net_imports_mwh, 0)} GWh more than it brought in.`),
+    );
+  }
+  $("#demandDepNote").textContent = imp
+    ? "How much of the electricity used here had to come from outside the state."
+    : "This state generated more than it used, so it had no net import need.";
+
+  $("#depCaveat").textContent =
+    "EIA publishes each state's NET position, not state-to-state flows, so this dashboard does not "
+    + "claim to name the origin states. Power moves across an interconnected grid run by balancing "
+    + "authorities whose territories cross state lines — PJM alone spans 13 states — so a "
+    + "state-to-state matrix cannot be derived from published state totals without inventing it. "
+    + "EIA's hourly balancing-authority interchange series is the closest real directional data, but "
+    + "it is authority-to-authority rather than state-to-state.";
+
+  renderDemandRank();
+}
+
+function renderDemandRank() {
+  const spec = DEMAND_METRICS[S.demandMetric];
+  for (const b of $$("#demandMetric button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.metric === S.demandMetric));
+  }
+  $("#demandRankNote").textContent = spec.note;
+
+  const rows = S.index.states
+    .filter((s) => s.demand && spec.get(s.demand) !== null)
+    .map((s) => ({ code: s.code, name: s.name, v: spec.get(s.demand), d: s.demand }))
+    .sort((a, b) => b.v - a.v);
+
+  hbar($("#demandRankChart"), rows.map((r) => ({
+    key: r.code, label: r.name, value: r.v,
+    // one measure, one colour: bar length already carries the magnitude
+    color: r.v < 0 ? slotColor("solar_u") : slotColor("hydro"),
+    sub: `${gwh(r.d.consumed_mwh, 0)} GWh used · ${gwh(r.d.generation_mwh, 0)} GWh generated`,
+    meta: r.d.is_net_importer
+      ? `Net importer: ${gwh(r.d.net_imports_mwh, 0)} GWh brought in.`
+      : `Net exporter: ${gwh(-r.d.net_imports_mwh, 0)} GWh sent out.`,
+  })), {
+    fmt: spec.fmt, labelW: 150, rowH: 26,
+    highlight: S.code === "US" ? null : S.code,
+    onClick: (d) => selectGeo(d.key),
+  });
 }
 
 /* ==========================================================================
@@ -598,15 +886,18 @@ function renderAll() {
   renderHeadline();
   renderMix();
   renderRanking();
+  renderSourceRank();
+  renderDemand();
   renderPlants();
   renderValidation();
   document.title = S.code === "US"
     ? "50 States of Electricity — U.S. power generation and emissions, 2024"
     : `${S.geo.name} electricity mix 2024 — 50 States of Electricity`;
-  $("#geoName").textContent = S.geo.name;
-  $("#mixGeo").textContent = S.geo.name;
-  $("#plantGeo").textContent = S.geo.name;
-  $("#valGeo").textContent = S.geo.name;
+  for (const [sel, name] of [["#geoName", 1], ["#mixGeo", 1], ["#plantGeo", 1],
+                             ["#valGeo", 1], ["#demandGeo", 1]]) {
+    const n = $(sel);
+    if (n) n.textContent = S.geo.name;
+  }
 }
 
 async function selectGeo(code, { push = true } = {}) {
@@ -687,6 +978,40 @@ function wireUI() {
     });
   }
 
+  // by-source: tabs are built once; metric and view toggles
+  renderSourceTabs();
+  for (const btn of $$("#srcMetric button")) {
+    btn.addEventListener("click", () => { S.srcMetric = btn.dataset.metric; renderSourceRank(); });
+  }
+  for (const btn of $$("#srcView button")) {
+    btn.addEventListener("click", () => {
+      S.srcView = btn.dataset.view;
+      for (const b of $$("#srcView button")) b.setAttribute("aria-pressed", String(b === btn));
+      $("#srcChartView").hidden = S.srcView !== "chart";
+      $("#srcTableView").hidden = S.srcView !== "table";
+      if (S.srcView === "chart") renderSourceRank();
+    });
+  }
+  // arrow-key navigation across the tablist
+  $("#srcTabs").addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tabs = $$("#srcTabs button");
+    const i = tabs.findIndex((t) => t.dataset.key === S.srcKey);
+    const j = e.key === "Home" ? 0
+      : e.key === "End" ? tabs.length - 1
+      : e.key === "ArrowLeft" ? (i - 1 + tabs.length) % tabs.length
+      : (i + 1) % tabs.length;
+    e.preventDefault();
+    S.srcKey = tabs[j].dataset.key;
+    renderSourceRank();
+    tabs[j].focus();
+  });
+
+  // demand ranking metric
+  for (const btn of $$("#demandMetric button")) {
+    btn.addEventListener("click", () => { S.demandMetric = btn.dataset.metric; renderDemandRank(); });
+  }
+
   // plant table sorting
   for (const th of $$("#plantTable thead th")) {
     if (!th.dataset.key) continue;
@@ -721,7 +1046,9 @@ function wireUI() {
     selectGeo(code, { push: false });
   });
 
-  onResize(() => { renderMix(); renderRanking(); renderPlants(); });
+  onResize(() => {
+    renderMix(); renderRanking(); renderSourceRank(); renderDemand(); renderPlants();
+  });
 }
 
 async function main() {

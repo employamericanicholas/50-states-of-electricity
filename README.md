@@ -17,6 +17,12 @@ except the CO₂ estimate, which is documented in full on the page and in [SOURC
 - **Every power plant** that reported generation to EIA in 2024 — 13,208 of them — with operator,
   county, nameplate capacity, net generation, and an estimated CO₂ figure with intensity in kg/MWh.
   Searchable, sortable, CSV-exportable.
+- **Tabs for every energy source**, ranking all states two ways — total generation in GWh, and that
+  source as a share of the state's own mix. The two rankings answer different questions: Texas leads
+  wind on volume (124,277 GWh) while Iowa leads on share.
+- **Demand and interstate trade** — what each state's customers actually used, delivery losses, and
+  how much had to be imported. DC covers 98% of its use with imports; Pennsylvania is the largest net
+  exporter at 84,825 GWh.
 - **A validation panel** comparing our bottom-up CO₂ estimate against EIA's own published state
   totals, so you can see how much to trust it. Nationally the all-fuel estimate lands at **99.4%**
   of EIA's figure.
@@ -32,7 +38,8 @@ index.html                 the dashboard
 assets/css/styles.css      brand tokens + layout
 assets/js/charts.js        dependency-free SVG charts (treemap, bars, stacked rows)
 assets/js/app.js           data loading, filtering, rendering
-data/index.json            51-state index — the only file loaded up front (~33 KB)
+scripts/verify_data.py     42,772 consistency checks over the built dataset
+data/index.json            51-state index: mixes, demand, trade — loaded up front (~87 KB)
 data/us.json               national totals + 300 largest plants
 data/state/XX.json         one file per state, every plant, loaded on demand
 data/meta.json             sources, emission factors, methodology, provenance

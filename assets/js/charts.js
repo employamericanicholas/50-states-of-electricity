@@ -283,19 +283,19 @@ export function hbar(host, items, opts = {}) {
     const dim = highlight && d.key !== highlight;
 
     // row label — text token, never the series colour
-    const lab = text(g, d.label, {
+    text(g, d.label, {
       x: labelW - 10, y: y + barH / 2 + 4, "text-anchor": "end",
       class: dim ? "mark-label mark-label--dim" : "mark-label", "font-size": 12,
     });
-    if (dim) lab.setAttribute("opacity", ".75");
 
-    const p = el("path", {
+    // Emphasis is carried by the label, not by fading every other bar: with 50
+    // rows, dimming the rest makes the whole chart read washed out.
+    el("path", {
       d: neg
         ? `M${x + len} ${y}h${-(len - RADIUS)}a${RADIUS} ${RADIUS} 0 0 0 ${-RADIUS} ${RADIUS}v${barH - 2 * RADIUS}a${RADIUS} ${RADIUS} 0 0 0 ${RADIUS} ${RADIUS}h${len - RADIUS}z`
         : barPath(x, y, len, barH, RADIUS, "h"),
       fill: d.color,
     }, g);
-    if (dim) p.setAttribute("opacity", ".38");
 
     // Value sits outside the bar end so it never collides with the fill. For a
     // negative bar the outside end points back at the row label, so put the
@@ -364,7 +364,7 @@ export function stackedRows(host, rows, opts = {}) {
       const w = Math.max(0.7, raw - (j < pos.length - 1 ? GAP : 0));
       const seg = el("rect", { x, y, width: w, height: barH, fill: p.color,
                                rx: j === 0 || j === pos.length - 1 ? 1.5 : 0 }, g);
-      if (dim) seg.setAttribute("opacity", ".5");
+      if (dim) seg.setAttribute("opacity", ".72");
       x += raw;
     });
 
