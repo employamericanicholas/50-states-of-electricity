@@ -143,6 +143,19 @@ def main() -> int:
             if abs(r - 1) > abs(worst_ratio[1] - 1) or worst_ratio[0] is None:
                 worst_ratio = (code, r)
 
+        # Biogenic fuel is a disclosed quantity, not a silent zero: a state that
+        # generated from biomass must report the biogenic MMBtu behind it, and
+        # must NOT report biogenic tonnage (none is estimated).
+        biomass = next((s["mwh"] for s in st["sources"] if s["key"] == "biomass"), 0)
+        check("biogenic_t" not in st["co2"],
+              f"{tag}: co2.biogenic_t is a dead field — no biogenic tonnage is estimated")
+        check("biogenic_mmbtu" in st["co2"], f"{tag}: co2.biogenic_mmbtu missing")
+        if biomass > 1000:
+            check(st["co2"].get("biogenic_mmbtu", 0) > 0,
+                  f"{tag}: {biomass:,.0f} MWh of biomass generation but no biogenic fuel reported")
+        for p in st["plants"]:
+            check("co2_biogenic_t" not in p, f"{tag}: plant {p['id']} has a dead co2_biogenic_t field")
+
         # behind-the-meter solar never appears as a plant
         check(not any(p["primary"] == "solar_small_scale" for p in st["plants"]),
               f"{tag}: small-scale solar must not appear as a plant — it has no plant-level data")

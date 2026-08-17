@@ -738,9 +738,14 @@ function renderValidation() {
       + `EIA emission factor (geothermal, blast-furnace and other manufactured gases, purchased `
       + `steam, waste heat) and is left unattributed rather than guessed at.`);
   }
-  if (c.biogenic_t !== undefined && S.geo.sources.some((s) => s.key === "biomass")) {
-    bits.push(`Biogenic CO₂ from biomass is excluded from every figure above, matching EIA's own `
-      + `state series.`);
+  if (c.biogenic_mmbtu > 0) {
+    // The exclusion is a convention, not an absence of stack emissions, so name
+    // its size rather than just asserting that it happened.
+    bits.push(`A further ${nf(c.biogenic_mmbtu / 1e6, 1)} million MMBtu of biomass — wood, black `
+      + `liquor, landfill gas, biogenic municipal waste — was burned here and carries no CO₂ in any `
+      + `figure above. EIA publishes no electric-power factor for these fuels and excludes biogenic `
+      + `carbon from its own state series, so none is estimated; that is an accounting convention, `
+      + `not an absence of emissions at the stack.`);
   }
   extra.textContent = bits.join(" ");
   extra.hidden = !bits.length;

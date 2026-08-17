@@ -173,8 +173,11 @@ FUELTYPE_TO_DETAIL = {
 # Keys are fuel2002 (specific EIA-923 fuel) codes. `kind` decides the treatment:
 #   "fossil"    counted in the headline CO2 figure
 #   "zero"      genuinely no combustion CO2 (nuclear, wind, solar, water) -> 0
-#   "biogenic"  biomass carbon: tracked separately and EXCLUDED from headline
-#               totals, matching EIA's own state electric-power CO2 series
+#   "biogenic"  biomass carbon: EXCLUDED from CO2 totals, matching EIA's own
+#               state electric-power CO2 series. EIA publishes no electric-power
+#               factor for these streams, so no tonnage is estimated at all; the
+#               biogenic FUEL burned is reported instead, so the size of what is
+#               being left out is visible rather than implied to be zero
 #   "unknown"   EIA publishes no single applicable factor: reported as
 #               unattributed rather than guessed at
 # ─────────────────────────────────────────────────────────────────────────────
@@ -453,7 +456,7 @@ def get_plants(key: str, use_cache: bool) -> tuple[dict, list[str]]:
             "by_detail": defaultdict(float),
             "co2_t": 0.0,             # electricity-only basis (headline)
             "co2_total_t": 0.0,       # all fuel burned, incl. useful thermal output
-            "co2_biogenic_t": 0.0,
+            "mmbtu_biogenic": 0.0,    # biomass fuel burned; deliberately not priced
             "mmbtu_eg": 0.0,
             "mmbtu_unattributed": 0.0,
             "fuels": {},
@@ -470,9 +473,11 @@ def get_plants(key: str, use_cache: bool) -> tuple[dict, list[str]]:
             kind, factor = f["kind"], f["kg_per_mmbtu"]
 
         if kind == "biogenic":
-            # No EIA factor published for biogenic streams and EIA's own series
-            # excludes them; we record the MMBtu so the exclusion is visible.
-            pass
+            # No tonnage is estimated: EIA publishes no electric-power factor for
+            # these streams and its own state series excludes biogenic carbon.
+            # Record the fuel burned so the exclusion is a disclosed quantity
+            # rather than a silent zero.
+            p["mmbtu_biogenic"] += mmbtu_eg
         elif factor is None:
             p["mmbtu_unattributed"] += mmbtu_eg
         else:
@@ -732,7 +737,7 @@ def build():
             "primary_slot": DETAIL_TO_SLOT[primary],
             "co2_t": r2(p["co2_t"], 0),
             "co2_total_t": r2(p["co2_total_t"], 0),
-            "co2_biogenic_t": r2(p["co2_biogenic_t"], 0),
+            "biogenic_mmbtu": r2(p["mmbtu_biogenic"], 0),
             "sources": detail_block(p["by_detail"]),
             # per-fuel detail for the methodology drawer
             "fuel_codes": {c: {"gen_mwh": r2(v["gen_mwh"]), "mmbtu": r2(v["mmbtu_eg"], 0),
@@ -786,7 +791,7 @@ def build():
                                            for k, v in sorted(official.get(code, {}).items())
                                            if k != "ALL"},
                 "ratio_to_official": r2(est_co2_total / off_co2, 3) if off_co2 else None,
-                "biogenic_t": r2(sum(p["co2_biogenic_t"] for p in plist), 0),
+                "biogenic_mmbtu": r2(sum(p["biogenic_mmbtu"] for p in plist), 0),
                 "unattributed_mmbtu": r2(sum(p["co2_unattributed_mmbtu"] for p in plist), 0),
             },
             "plant_count": len(plist),
@@ -841,7 +846,7 @@ def build():
             "estimate_all_fuel_t": r2(us_est_total, 0),
             "eia_official_t": r2(us_off, 0),
             "ratio_to_official": r2(us_est_total / us_off, 3) if us_off else None,
-            "biogenic_t": r2(sum(p["co2_biogenic_t"] for p in all_plants), 0),
+            "biogenic_mmbtu": r2(sum(p["biogenic_mmbtu"] for p in all_plants), 0),
             "unattributed_mmbtu": r2(sum(p["co2_unattributed_mmbtu"] for p in all_plants), 0),
         },
         "plant_count": len(all_plants),
@@ -965,7 +970,11 @@ def build():
                 "combined-heat-and-power plants and so reflects electricity alone; the all-fuel basis "
                 "adds that thermal fuel back and is what we compare against EIA's own published state "
                 "total. Biogenic CO2 from biomass is excluded from both, matching EIA's state "
-                "electric-power CO2 series. Nuclear, wind, solar and water are zero by construction. "
+                "electric-power CO2 series: EIA publishes no electric-power emission factor for wood, "
+                "black liquor, landfill gas or biogenic municipal waste, so no tonnage is estimated "
+                "for them at all. Because that exclusion is a convention rather than an absence of "
+                "stack emissions, the biogenic FUEL burned is reported instead, so its scale is "
+                "visible. Nuclear, wind, solar and water are zero by construction. "
                 "Fuels for which EIA publishes no single applicable factor - geothermal (which differs "
                 "between steam and binary-cycle plants), blast-furnace and other manufactured gases, "
                 "purchased steam and waste heat - are left unattributed rather than guessed at, and "
