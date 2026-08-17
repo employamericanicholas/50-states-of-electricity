@@ -405,17 +405,28 @@ export function stackedRows(host, rows, opts = {}) {
 /* ======================================================================
    A single 100% stacked bar — the selected geography's mix in one line.
    ====================================================================== */
+/** "Solar (utility-scale)" -> "Solar": the qualifier never fits under a segment. */
+const shortLabel = (s) => s.replace(/\s*\(.*\)\s*$/, "");
+
 export function stackedBar(host, parts, opts = {}) {
-  const { height = 46, fmt = String } = opts;
+  const { height = 46, fmt = String, pctSize = 14, labelSize = 13 } = opts;
   clear(host);
   const pos = parts.filter((p) => p.value > 0);
   if (!pos.length) { host.innerHTML = '<p class="empty">Nothing to show.</p>'; return; }
 
   const W = hostWidth(host);
-  const H = height + 22;
+  const H = height + 24;
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, role: "group" }, host);
   const sum = pos.reduce((s, p) => s + p.value, 0);
   let x = 0;
+  // Right edge of the last label drawn, so names never run into each other as the
+  // segments narrow toward the tail. A name that will not fit is simply dropped —
+  // the legend, hover readout and table view all still carry it.
+  let lastLabelRight = -Infinity;
+  // Shortening drops the qualifier, so both solar rows become "Solar". Draw each
+  // distinct name once — largest first, so the bigger segment keeps it — and let
+  // the legend and hover readout separate them.
+  const drawnNames = new Set();
 
   pos.forEach((p, j) => {
     const raw = (p.value / sum) * W;
@@ -423,18 +434,27 @@ export function stackedBar(host, parts, opts = {}) {
     const g = el("g", { class: "mark" }, svg);
     el("rect", { x, y: 0, width: w, height: height, fill: p.color,
                  rx: j === 0 || j === pos.length - 1 ? 2 : 0 }, g);
+
     const pct = (p.value / sum) * 100;
     const lbl = `${pct.toFixed(0)}%`;
-    if (w > 34 && textW(lbl, 12, 700) < w - 8) {
+    if (textW(lbl, pctSize, 700) < w - 8) {
       const mode = inkOn(p.color);
-      text(g, lbl, { x: x + w / 2, y: height / 2 + 4.5, "text-anchor": "middle",
+      text(g, lbl, { x: x + w / 2, y: height / 2 + pctSize / 2 - 1, "text-anchor": "middle",
                      class: mode === "inv" ? "mark-label mark-label--inv" : "mark-label",
-                     "font-size": 12 });
+                     "font-size": pctSize });
     }
-    if (w > 46) {
-      text(svg, p.label, { x: x + w / 2, y: height + 15, "text-anchor": "middle",
-                           class: "axis-text" });
+
+    const name = shortLabel(p.label);
+    const nameW = textW(name, labelSize);
+    const centre = x + w / 2;
+    // must fit inside its own segment, clear the previous name, and not repeat one
+    if (nameW < w - 6 && centre - nameW / 2 > lastLabelRight + 8 && !drawnNames.has(name)) {
+      text(svg, name, { x: centre, y: height + labelSize + 4, "text-anchor": "middle",
+                        class: "axis-text", "font-size": labelSize });
+      lastLabelRight = centre + nameW / 2;
+      drawnNames.add(name);
     }
+
     // fmt carries its own unit, so no unit is appended here.
     interactive(g, p.label,
       [{ value: fmt(p.value), label: pctLabel(pct), color: p.color }]);

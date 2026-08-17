@@ -24,6 +24,8 @@
   --green: #008a6a;
   --orange: #ef8c48;
   --yellow: #eac14b;
+  --dark-purple: #2e2a73;
+  --bright-purple: #8a2b9c;
   --black: #0a0a0a;
   /* same hue as --yellow, stepped down until it clears large-text contrast on
      the Warm White surface (3.57:1 vs 1.61:1) */
@@ -206,8 +208,10 @@ button, select, input { font: inherit; color: inherit; }
 .headline { display: grid; grid-template-columns: minmax(230px, 300px) 1fr; gap: 26px; align-items: start; }
 @media (max-width: 800px) { .headline { grid-template-columns: 1fr; } }
 
+/* Dark Purple (Brand Guidelines p.21). Warm White clears 11.6:1 on it, the label
+   step 5.9:1, and the card itself sits at 11.6:1 against the page. */
 .figure-hero {
-  background: var(--deep-blue); color: var(--warm-white);
+  background: var(--dark-purple); color: var(--warm-white);
   border-radius: var(--radius); padding: 22px 22px 20px;
 }
 /* inside a card, where the card already supplies the frame */

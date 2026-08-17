@@ -9,7 +9,7 @@
 // new app.js could load against a stale charts.js and fail at import time —
 // which no try/catch inside the module can see. Bump both together.
 import { treemap, hbar, stackedRows, stackedBar, clear, onResize, hideTip, pctLabel }
-  from "./charts.js?v=7";
+  from "./charts.js?v=9";
 
 const DATA = "./data";
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -61,6 +61,28 @@ function energy(v) {
 const mwh = energy;                              // treemap tiles use the same format
 /** MWh -> whole GWh. */
 const gwh = (v, d = 0) => nf(v / 1e3, d);
+
+/**
+ * One unit for a whole chart, chosen from its largest value, so every row is
+ * directly comparable. Per-value units made pumped storage read "-5,852 GWh" in a
+ * chart where everything else was quoted in TWh.
+ *
+ * Sharing a unit means the small rows need a decimal to stay truthful: Georgia's
+ * 568 GWh of rooftop solar would read "1 TWh" whole, overstating it by three
+ * quarters. So values under 10 of the shared unit keep one place, and anything
+ * that would still show as zero is marked as below the threshold instead.
+ */
+function commonEnergyFmt(values) {
+  const max = Math.max(0, ...values.map((v) => Math.abs(v)));
+  const [div, unit] = max >= TWH_FLOOR ? [1e6, "TWh"]
+    : max >= 1e3 ? [1e3, "GWh"]
+    : [1, "MWh"];
+  return (v) => {
+    const scaled = v / div;
+    if (v !== 0 && Math.abs(scaled) < 0.05) return `${v < 0 ? "−" : ""}<0.1 ${unit}`;
+    return `${nf(scaled, Math.abs(scaled) < 10 ? 1 : 0)} ${unit}`;
+  };
+}
 /**
  * Tonnes of CO2 -> a whole number with the unit that makes it whole. Switching to
  * kilotonnes below 10 Mt keeps small states honest: Vermont's 11,700 t would
@@ -119,15 +141,19 @@ function renderHeadline() {
   const tiles = [
     {
       label: "Carbon-free share", value: nf(g.carbon_free_pct, g.carbon_free_pct >= 10 ? 0 : 1), unit: "%",
-      meter: g.carbon_free_pct, foot: "Nuclear + all renewables",
+      meter: g.carbon_free_pct, meterColor: cssVar("--bright-purple"),
+      foot: "Nuclear + all renewables",
     },
     {
       label: "Renewable share", value: nf(g.renewable_pct, g.renewable_pct >= 10 ? 0 : 1), unit: "%",
-      meter: g.renewable_pct, foot: "Incl. small-scale solar",
+      meter: g.renewable_pct, meterColor: cssVar("--green"),
+      foot: "Incl. small-scale solar",
     },
     {
       label: "Fossil share", value: nf(g.fossil_pct, g.fossil_pct >= 10 ? 0 : 1), unit: "%",
-      meter: g.fossil_pct, foot: "Coal, gas, petroleum, other gases",
+      // the coal colour, since coal leads the fossil group
+      meter: g.fossil_pct, meterColor: sourceColor("coal"),
+      foot: "Coal, gas, petroleum, other gases",
     },
     {
       label: "Estimated CO₂", value: co2(co2t).value, unit: co2(co2t).unit,
@@ -165,6 +191,7 @@ function renderHeadline() {
       m.className = "tile__meter";
       const i = document.createElement("i");
       i.style.width = `${Math.max(0, Math.min(100, t.meter))}%`;
+      if (t.meterColor) i.style.background = t.meterColor;
       m.appendChild(i);
       d.appendChild(m);
     }
@@ -190,6 +217,10 @@ function renderMix() {
   const posTotal = rows.filter((r) => r.value > 0).reduce((s, r) => s + r.value, 0);
   const negatives = rows.filter((r) => r.value < 0);
 
+  // One unit across every chart in this card, so pumped storage is not the only
+  // row quoted in GWh while the rest are in TWh.
+  const unitFmt = commonEnergyFmt(rows.map((r) => r.value));
+
   // ---- treemap: one tile per energy source ----
   const tmItems = rows.filter((r) => r.value > 0).map((r) => ({
     label: r.label, value: r.value, color: r.color,
@@ -197,7 +228,7 @@ function renderMix() {
       ? "EIA model estimate of distributed solar under 1 MW — not metered plant output."
       : null,
   }));
-  treemap($("#mixTreemap"), tmItems, { height: 356, fmt: mwh });
+  treemap($("#mixTreemap"), tmItems, { height: 356, fmt: unitFmt });
 
   // ---- single stacked bar: the mix in one line, largest share first ----
   // Sorted by size rather than the documented source order, matching the treemap
@@ -205,13 +236,13 @@ function renderMix() {
   // order instead, so the same source sits in the same place in every row.
   stackedBar($("#mixBar"), rows.filter((r) => r.value > 0)
     .sort((a, b) => b.value - a.value)
-    .map((r) => ({ label: r.label, value: r.value, color: r.color })), { fmt: mwh });
+    .map((r) => ({ label: r.label, value: r.value, color: r.color })), { fmt: unitFmt });
 
   // ---- ranked bars with direct value labels ----
   hbar($("#mixBars"), rows.slice().sort((a, b) => b.value - a.value).map((r) => ({
     key: r.key, label: r.label, value: r.value, color: r.color,
     sub: r.value > 0 ? `${pctLabel((r.value / posTotal) * 100)} of generation` : "net negative",
-  })), { fmt: energy, labelW: 208, rowH: 30 });
+  })), { fmt: unitFmt, labelW: 208, rowH: 30 });
 
   // ---- legend (always present; identity never colour-alone) ----
   const leg = $("#mixLegend");
@@ -567,13 +598,9 @@ function renderDemand() {
     ? "How much of the electricity used here had to come from outside the state."
     : "This state generated more than it used, so it had no net import need.";
 
-  $("#depCaveat").textContent =
-    "EIA publishes each state's NET position, not state-to-state flows, so this dashboard does not "
-    + "claim to name the origin states. Power moves across an interconnected grid run by balancing "
-    + "authorities whose territories cross state lines — PJM alone spans 13 states — so a "
-    + "state-to-state matrix cannot be derived from published state totals without inventing it. "
-    + "EIA's hourly balancing-authority interchange series is the closest real directional data, but "
-    + "it is authority-to-authority rather than state-to-state.";
+  // Why no origin states are named — EIA publishes net positions only, never
+  // state-to-state flows — stays documented in the methodology caveats rather
+  // than occupying a card here.
 
   renderDemandRank();
 }
@@ -660,7 +687,7 @@ function renderPlants() {
     sub: S.index.detail_labels[p.primary] || "",
     meta: [p.operator, p.county ? `${p.county} County` : null, p.state]
       .filter(Boolean).join(" · "),
-  })), { fmt: energy, labelW: 200, rowH: 29 });
+  })), { fmt: commonEnergyFmt(top.map((p) => p.gen_mwh)), labelW: 200, rowH: 29 });
 
   $("#plantChartCaption").textContent = all.length
     ? `The ${top.length} largest generators${S.plantQuery ? " matching your search" : ""} in `
