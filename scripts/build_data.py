@@ -738,6 +738,10 @@ def build():
             "co2_kg_per_mwh": state_doc.get("co2_kg_per_mwh"),
             "plant_count": len(plist),
             "slots": slot_block(by_detail),
+            # Detailed sources travel with the index too, so the cross-state
+            # chart can name what is inside its "Other" slot. Petroleum is 66%
+            # of Hawaii's generation but only ever reads as "Other" otherwise.
+            "sources": detail_block(by_detail),
         })
 
     # ── national ────────────────────────────────────────────────────────────

@@ -374,8 +374,11 @@ export function stackedRows(host, rows, opts = {}) {
                              "font-size": 11.5, "font-variant-numeric": "tabular-nums" });
     }
 
+    // The readout may name finer sources than the coloured segments do, so a
+    // catch-all slot never hides what is actually inside it.
+    const readout = (r.tipParts || pos).filter((p) => p.value > 0);
     interactive(g, r.label,
-      pos.slice().sort((a, b) => b.value - a.value).map((p) => ({
+      readout.slice().sort((a, b) => b.value - a.value).map((p) => ({
         value: `${((p.value / sum) * 100).toFixed(1)}%`,
         label: p.label, color: p.color,
       })),

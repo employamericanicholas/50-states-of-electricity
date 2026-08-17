@@ -247,6 +247,11 @@ function renderRanking() {
     parts: r.slots.map((s) => ({
       key: s.key, label: s.label, value: s.mwh, color: slotColor(s.key),
     })),
+    // Hover names the detailed sources, not just the 8 colour slots: petroleum
+    // is 66% of Hawaii's generation yet lives in the shared "Other" slot.
+    tipParts: (r.sources || []).map((s) => ({
+      key: s.key, label: s.label, value: s.mwh, color: slotColor(s.slot),
+    })),
   })), {
     labelW: 138, rowH: 23, fmt: (v) => `${twh(v)} TWh`,
     highlight: S.code === "US" ? null : S.code,
@@ -259,10 +264,18 @@ function renderRanking() {
   $("#rankCaption").textContent =
     `All 50 states and the District of Columbia, 2024, ordered by ${spec.label.toLowerCase()}. `
     + `Each row is that state's own generation mix as a share of its total. `
-    + `Select a row to open that state.`;
+    + `Select a row to open that state. "Other" is a shared colour for `
+    + `${OTHER_CONTENTS} — hover or focus any row to see which of those it actually is. `
+    + `In Hawaii, for instance, it is almost entirely residual fuel oil.`;
 }
 
-/** Legend for the 8 colour slots, in fixed slot order. */
+/**
+ * Legend for the 8 colour slots, in fixed slot order. The "Other" slot is a
+ * shared bucket, so it names what it contains — in Hawaii it is mostly
+ * petroleum, which would otherwise read as an anonymous 72% of the state.
+ */
+const OTHER_CONTENTS = "petroleum, geothermal, biomass, other gases, pumped storage";
+
 function slotLegend(host) {
   clear(host);
   for (const slot of S.index.slot_order) {
@@ -272,6 +285,12 @@ function slotLegend(host) {
     const s = document.createElement("span");
     s.textContent = S.index.slot_labels[slot];
     li.append(i, s);
+    if (slot === "other") {
+      const hint = document.createElement("span");
+      hint.className = "t-muted";
+      hint.textContent = `(${OTHER_CONTENTS})`;
+      li.appendChild(hint);
+    }
     host.appendChild(li);
   }
 }
