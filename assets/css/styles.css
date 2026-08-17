@@ -112,7 +112,9 @@ button, select, input { font: inherit; color: inherit; }
 .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
 
 /* ---------- masthead ---------- */
-.masthead { background: var(--deep-blue); color: var(--warm-white); }
+/* Brand Blue #104591 (Brand Guidelines p.20: "works well as a background").
+   Warm White on it clears 8.6:1; the meta text clears 5.1:1. */
+.masthead { background: var(--blue); color: var(--warm-white); }
 .masthead__bar {
   max-width: var(--maxw); margin: 0 auto; padding: 14px 24px;
   display: flex; align-items: center; gap: 16px;
