@@ -201,7 +201,7 @@ button, select, input { font: inherit; color: inherit; }
 }
 .card__head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
 .card__title { font: 700 15px/1.25 var(--font-sub); letter-spacing: -.005em; }
-.card__note { font: 400 12.5px/1.45 var(--font-body); color: var(--ink-muted); margin: 2px 0 14px; }
+.card__note { font: 400 13.5px/1.5 var(--font-body); color: var(--ink-muted); margin: 2px 0 14px; }
 .card__spacer { flex: 1; }
 
 /* ---------- hero figure + stat tiles ---------- */
@@ -260,26 +260,35 @@ button, select, input { font: inherit; color: inherit; }
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart text { font-family: var(--font-body); }
 .grid-line { stroke: var(--rule); stroke-width: 1; }
-.axis-text { font-size: 11px; fill: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.axis-text { font-size: 12px; fill: var(--ink-faint); font-variant-numeric: tabular-nums; }
 /* Source names under the stacked bar: these are read, not skimmed, so they take
    body ink rather than the recessive axis grey. */
 .axis-text--strong { fill: var(--ink); }
 .mark { transition: opacity .12s ease; }
 .mark:hover, .mark[data-hover="1"] { opacity: .82; }
-.mark-label { font-size: 11.5px; font-weight: 700; fill: var(--ink-strong); }
+.mark-label { font-size: 12px; font-weight: 700; fill: var(--ink-strong); }
 .mark-label--inv { fill: #fff; }
-.mark-label--dim { font-weight: 400; fill: var(--ink-muted); }
+/* De-emphasis is colour only. Dropping to weight 400 as well made every row of a
+   50-row chart read thin and small whenever nothing was highlighted, which is the
+   common case — the labels stay the same size and weight, they just recede. */
+.mark-label--dim { fill: var(--ink-muted); }
 
 .grid-2 { display: grid; grid-template-columns: 1.15fr 1fr; gap: var(--gap); align-items: start; }
 @media (max-width: 1000px) { .grid-2 { grid-template-columns: 1fr; } }
 
 /* ---------- legend ---------- */
-.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 14px 0 0; padding: 0; list-style: none; }
-.legend li { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-muted); }
-.legend i {
-  width: 11px; height: 11px; border-radius: 2px; flex: none; display: block;
+/* The legend is the dependable identity channel, and in this dashboard it also
+   carries each source's share — so it reads at body size in body ink, not as
+   fine print. */
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 15px 0 0; padding: 0; list-style: none; }
+.legend li {
+  display: flex; align-items: center; gap: 7px;
+  font: 600 13.5px/1.35 var(--font-sub); color: var(--ink);
 }
-.legend b { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.legend i {
+  width: 12px; height: 12px; border-radius: 2px; flex: none; display: block;
+}
+.legend b { font-weight: 700; color: var(--ink-strong); font-variant-numeric: tabular-nums; }
 .legend--interactive li { cursor: default; }
 
 /* ---------- tooltip ---------- */

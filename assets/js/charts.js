@@ -199,11 +199,11 @@ export function treemap(host, items, opts = {}) {
     const cls = mode === "inv" ? "mark-label mark-label--inv" : "mark-label";
     // Step the label down through smaller sizes and only draw the one that
     // genuinely fits with padding — never clip, never overflow the tile.
-    const nameSize = [13, 11.5, 10.5].find(
+    const nameSize = [14, 12.5, 11].find(
       (s) => w > 54 && h > 28 && textW(r.label, s, 700) < w - 14) || 0;
     if (nameSize) {
       text(g, r.label, { x: x + 8, y: y + 7 + nameSize, class: cls, "font-size": nameSize });
-      const valSize = Math.min(11.5, nameSize);
+      const valSize = Math.min(12.5, nameSize);
       const val = `${fmt(r.value)}  ·  ${pctLabel(pct)}`;
       if (h > nameSize + valSize + 22 && textW(val, valSize) < w - 14) {
         const v = text(g, val, { x: x + 8, y: y + 9 + nameSize + valSize + 3, class: cls,
@@ -318,7 +318,7 @@ export function hbar(host, items, opts = {}) {
     text(g, vtxt, {
       x: neg ? zeroX + 8 : x + len + 8, y: y + barH / 2 + 4,
       "text-anchor": "start",
-      class: "mark-label", "font-size": 11.5,
+      class: "mark-label", "font-size": 12,
       "font-variant-numeric": "tabular-nums",
     });
 
@@ -364,7 +364,7 @@ export function stackedRows(host, rows, opts = {}) {
     const on = highlight && r.key === highlight;
 
     const lab = text(g, r.label, {
-      x: labelW - 10, y: y + barH / 2 + 4, "text-anchor": "end", "font-size": 11.5,
+      x: labelW - 10, y: y + barH / 2 + 4, "text-anchor": "end", "font-size": 12,
       class: on ? "mark-label" : "mark-label mark-label--dim",
     });
     if (dim) lab.setAttribute("opacity", ".8");
@@ -385,7 +385,7 @@ export function stackedRows(host, rows, opts = {}) {
     if (trailFmt) {
       text(g, trailFmt(r), { x: W - 4, y: y + barH / 2 + 4, "text-anchor": "end",
                              class: on ? "mark-label" : "mark-label mark-label--dim",
-                             "font-size": 11.5, "font-variant-numeric": "tabular-nums" });
+                             "font-size": 12, "font-variant-numeric": "tabular-nums" });
     }
 
     interactive(g, r.label,
