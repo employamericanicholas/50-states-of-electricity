@@ -32,21 +32,21 @@ const S = {
 const nf = (n, d = 0) => (n === null || n === undefined || Number.isNaN(n)
   ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }));
 
-/** MWh -> a value carrying its own unit, e.g. "1,869.9 TWh" / "412.5 GWh". */
+/**
+ * MWh -> a value carrying its own unit, e.g. "1,869.9 TWh" / "413 GWh".
+ * GWh and MWh are shown as whole numbers; only TWh keeps a decimal, because at
+ * that scale one place is the difference between 1,869 and 1,870 TWh.
+ */
 function energy(v) {
   const a = Math.abs(v);
   if (a >= 1e6) return `${nf(v / 1e6, 1)} TWh`;
-  if (a >= 1e3) return `${nf(v / 1e3, 1)} GWh`;
+  if (a >= 1e3) return `${nf(v / 1e3, 0)} GWh`;
   return `${nf(v, 0)} MWh`;
 }
-/** Compact, unit-free — for tight treemap tiles. */
-function mwh(v) {
-  const a = Math.abs(v);
-  if (a >= 1e6) return `${nf(v / 1e6, 1)} TWh`;
-  if (a >= 1e3) return `${nf(v / 1e3, 1)} GWh`;
-  return `${nf(v, 0)} MWh`;
-}
+const mwh = energy;                              // treemap tiles use the same format
 const twh = (v, d = 1) => nf(v / 1e6, d);
+/** MWh -> whole GWh. */
+const gwh = (v, d = 0) => nf(v / 1e3, d);
 const mt = (v, d = 1) => nf(v / 1e6, d);        // tonnes -> million tonnes
 const pct = (v, d = 1) => `${nf(v, d)}%`;
 
@@ -302,8 +302,6 @@ function slotLegend(host) {
 /* ==========================================================================
    Render: by energy source — rank all states on one source
    ========================================================================== */
-const gwh = (mwh, d = 1) => nf(mwh / 1e3, d);
-
 /** [{ code, name, mwh, share, total }] for one detailed source, across states. */
 function sourceRows(key) {
   const out = [];
@@ -379,7 +377,7 @@ function renderSourceRank() {
     meta: S.srcKey === "solar_small_scale"
       ? "EIA model estimate of distributed solar under 1 MW." : null,
   })), {
-    fmt: byGwh ? (v) => `${nf(v, 1)} GWh` : (v) => `${nf(v, 1)}%`,
+    fmt: byGwh ? (v) => `${nf(v, 0)} GWh` : (v) => `${nf(v, 1)}%`,
     labelW: 150, rowH: 26,
     highlight: S.code === "US" ? null : S.code,
     onClick: (d) => selectGeo(d.key),
