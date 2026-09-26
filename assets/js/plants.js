@@ -7,8 +7,8 @@
 
 // Keep the ?v= in step with plants.html, for the reason given in app.js.
 import { columns, line, heatmap, seqColor, clear, onResize, hideTip, pctLabel }
-  from "./charts.js?v=15";
-import { createPlantMap } from "./plantmap.js?v=15";
+  from "./charts.js?v=16";
+import { createPlantMap } from "./plantmap.js?v=16";
 
 const DATA = "./data";
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -176,7 +176,7 @@ function derive(file) {
 /** Years after the last complete one hold only EIA's monthly survey sample. */
 const sampleYear = (y) => y > S.meta.complete_through;
 /** An operating plant whose data stops at the end of the last complete year reports annually. */
-const annualOnly = (p) => p.active && p.end === `${S.meta.complete_through}-12` && p.end < S.meta.end;
+const annualOnly = (p) => !p.facility && p.active && p.end === `${S.meta.complete_through}-12` && p.end < S.meta.end;
 const annualOnlyNote = (p) => "This plant reports to EIA once a year, and EIA has not yet published its "
   + `figures after ${monthName(p.end)}. They will appear here once EIA releases its next annual data.`;
 
@@ -301,7 +301,10 @@ function renderProfile() {
   const p = S.plant;
   const a = yearRow();
 
-  $("#plantEyebrow").textContent = p.active ? "Power plant" : "Power plant · retired or no longer operating";
+  // EIA also files fuel terminals and gas-storage sites as "plants", to track the
+  // fuel stocked there; say plainly that one of those is not a power plant
+  $("#plantEyebrow").textContent = p.facility ? "Fuel facility · not a power plant"
+    : p.active ? "Power plant" : "Power plant · retired or no longer operating";
   $("#plantName").textContent = p.name;
   const meta = $("#plantMeta");
   clear(meta);
@@ -316,6 +319,13 @@ function renderProfile() {
   for (const b of bits.filter(Boolean)) {
     const s = document.createElement("span");
     s.textContent = b;
+    meta.appendChild(s);
+  }
+  if (p.facility) {
+    const s = document.createElement("span");
+    s.style.flexBasis = "100%";
+    s.textContent = `This is a ${p.facility}. EIA lists it among plants because utilities report the fuel `
+      + "they stock here; it has no generators and produces no electricity.";
     meta.appendChild(s);
   }
 
@@ -414,7 +424,7 @@ function renderProfile() {
     ["Balancing authority", p.ba || "—", p.ba_name || ""],
     ["Generators", `${nf(inService.length)} in service`,
       p.generators.length > inService.length
-        ? `${nf(p.generators.length - inService.length)} retired or removed since 2016` : "None retired since 2016"],
+        ? `${nf(p.generators.length - inService.length)} retired or removed` : p.facility ? "Not a power plant" : "None retired"],
     ["First unit online", online.length ? fmtYM(online[0]) : "—",
       online.length > 1 ? `Newest: ${fmtYM(online.at(-1))}` : ""],
     ["Reporting", `${monthName(p.start)} – ${monthName(p.end)}`,
@@ -441,6 +451,14 @@ function renderProfile() {
     });
     sm.appendChild(aMap);
     v.appendChild(sm);
+    if (p.location) {
+      // EIA's API had no coordinates for this one; say where they came from
+      const src = document.createElement("small");
+      src.textContent = `Location from ${p.location.source}`
+        + (p.location.physical_state && p.location.physical_state !== p.state
+          ? `. EIA files it under ${p.state_name}, but it is in ${p.location.physical_state}.` : ".");
+      v.appendChild(src);
+    }
     div.append(v);
     grid.appendChild(div);
   }
@@ -826,7 +844,8 @@ function renderGenerators() {
   if (!p.generators.length) {
     const tr = document.createElement("tr");
     const td = Object.assign(document.createElement("td"), { className: "t-muted",
-      textContent: "No generators for this plant appear in EIA's inventory from December 2016 onward." });
+      textContent: p.facility ? "None: this facility stores fuel and generates nothing."
+        : "No generators for this plant appear in EIA's generator inventory." });
     td.colSpan = 8;
     tr.appendChild(td);
     body.appendChild(tr);
@@ -848,7 +867,7 @@ function renderGenerators() {
   }
   const cap = p.generators.filter((g) => g.status !== "RE").reduce((s, g) => s + g.capacity_mw, 0);
   $("#genCaption").textContent = `${nf(p.generators.length)} generator${p.generators.length === 1 ? "" : "s"} `
-    + `listed since December 2016; ${nf(cap, cap < 10 ? 1 : 0)} MW nameplate in service in the latest inventory `
+    + `listed in EIA's inventory; ${nf(cap, cap > 0 && cap < 10 ? 1 : 0)} MW nameplate in service in the latest one `
     + `(${fmtYM(S.meta.generator_snapshots.at(-1))}).`;
 }
 
@@ -861,7 +880,10 @@ function renderNotes() {
       "Monthly net generation and fuel consumed come from Form EIA-923, served by the EIA API route "
       + "electricity/facility-fuel. Generator details — capacity, technology, online and planned retirement "
       + "dates, operator, county and coordinates — come from the monthly generator inventory, Form EIA-860M "
-      + "(electricity/operating-generator-capacity), read once per December and for the latest month."],
+      + "(electricity/operating-generator-capacity), read once per December and for the latest month. "
+      + "Plants that closed before December 2016 are filled in from the same inventory's earlier months. "
+      + "A few locations EIA's API does not carry come from EIA's annual Form EIA-860 files or, for fuel "
+      + "terminals that are not power plants, from public sources; the plant page names the source."],
     ["Recent months are preliminary",
       "EIA surveys a sample of plants every month and the rest once a year. Until a year's annual survey is "
       + "processed, monthly figures for plants outside the sample are EIA estimates, and all recent months "
@@ -1021,7 +1043,7 @@ async function loadMap() {
     if (!S.map) throw new Error("the map library did not load");
     const missing = S.meta.plant_count - points.plants.length;
     if (missing > 0) {
-      $("#mapMissing").textContent = `${nf(missing)} plants have no location on file with EIA, so they `
+      $("#mapMissing").textContent = `${nf(missing)} facilities have no confirmed location, so they `
         + "appear in the menus below but not on the map.";
     }
     // a plant chosen before the map finished loading (a shared link, say)

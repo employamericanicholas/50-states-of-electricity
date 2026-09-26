@@ -186,6 +186,42 @@ def get_generator_snapshot(key: str, period: str, use_cache: bool) -> list[dict]
     )
 
 
+def get_generator_history(key: str, plant_ids: list[str], end: str, use_cache: bool) -> list[dict]:
+    """
+    Every monthly inventory row since 2008 for the given plants. Used for plants
+    that retired before the first December snapshot, so they still get their
+    coordinates, operator, county and generators.
+    """
+    rows: list[dict] = []
+    for k in range(0, len(plant_ids), 100):          # keep each URL a sane length
+        chunk = plant_ids[k:k + 100]
+        rows += fetch_pages(
+            key, "electricity/operating-generator-capacity/data/",
+            [("frequency", "monthly"), ("start", "2008-01"), ("end", end),
+             ("data[]", "nameplate-capacity-mw"), ("data[]", "net-summer-capacity-mw"),
+             ("data[]", "operating-year-month"), ("data[]", "planned-retirement-year-month"),
+             ("data[]", "county"), ("data[]", "latitude"), ("data[]", "longitude")]
+            + [("facets[plantid][]", p) for p in chunk]
+            + [("sort[0][column]", "period"), ("sort[0][direction]", "asc"),
+               ("sort[1][column]", "plantid"), ("sort[1][direction]", "asc"),
+               ("sort[2][column]", "generatorid"), ("sort[2][direction]", "asc")],
+            use_cache, label=f"generator history for {len(chunk)} plants",
+        )
+    return rows
+
+
+# Locations EIA's API does not carry, each with its source. Used only when EIA's
+# own inventory has no coordinates for a plant. See data/plant_locations.json.
+LOCATIONS_FILE = DATA / "plant_locations.json"
+
+
+def load_extra_locations() -> dict[str, dict]:
+    if not LOCATIONS_FILE.exists():
+        return {}
+    doc = json.loads(LOCATIONS_FILE.read_text(encoding="utf-8"))
+    return {f"{r['state']}/{r['id']}": r for r in doc["locations"]}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Transform
 # ─────────────────────────────────────────────────────────────────────────────
@@ -406,6 +442,17 @@ def build():
         snapshots = {p: f.result() for p, f in snap_futs.items()}
         state_rows = {s: f.result() for s, f in state_futs.items()}
 
+    # Plants that closed before the first December snapshot appear in none of
+    # them. Their full inventory history is folded in as extra snapshots; since
+    # they are absent from the latest one, their generators read as retired.
+    listed = {str(r.get("plantid")) for rows in snapshots.values() for r in rows}
+    reporting = sorted({str(r.get("plantCode")) for rows in state_rows.values() for r in rows})
+    unlisted = [p for p in reporting if p not in listed]
+    if unlisted:
+        for r in get_generator_history(key, unlisted, gen_end, use_cache):
+            snapshots.setdefault(r["period"], []).append(r)
+    extra_locations = load_extra_locations()
+
     gens = gen_index(snapshots)
     final_snap = snap_periods[-1]
 
@@ -500,10 +547,22 @@ def build():
                     acc[yi[int(months[first + i][:4])]] += v
                 return rnd(acc, 0)
 
+            # EIA's inventory first; the curated file only fills a gap it leaves
+            entry = extra_locations.get(f"{state}/{pid}", {})
+            # a facility that is not a power plant says what it is instead of "Other"
+            if entry.get("label"):
+                flabel = entry["label"]
+            # EIA's inventory first; the curated coordinates only fill a gap it leaves
+            loc = entry if g["meta"].get("lat") is None and entry.get("lat") is not None else None
+            if loc:
+                g["meta"]["lat"], g["meta"]["lon"] = round(loc["lat"], 4), round(loc["lon"], 4)
             doc = {
                 "id": pid, "name": p["name"], "state": state, "state_name": STATES[state],
                 **{k: g["meta"].get(k) for k in ("operator", "county", "ba", "ba_name",
                                                  "sector", "lat", "lon")},
+                **({"location": {k: loc[k] for k in ("source", "url", "physical_state", "note")
+                                 if loc.get(k)}} if loc else {}),
+                **({"facility": entry["what"]} if entry.get("label") and entry.get("what") else {}),
                 "primary": primary, "fuel_label": flabel,
                 "active": is_active,
                 "start": months[first], "end": months[last],

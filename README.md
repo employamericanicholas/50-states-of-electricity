@@ -47,6 +47,12 @@ For the chosen plant it shows:
 - **Fuel detail** by EIA fuel code, and the **generator inventory**: technology, size, online date,
   planned retirement, and units retired since 2016.
 
+Locations come from EIA's generator inventory, back to 2008 for plants that closed early in the
+window. The handful it lacks are in [data/plant_locations.json](data/plant_locations.json), each citing
+its source. Most of those are fuel terminals and gas-storage sites that EIA files as "plants" (IDs in
+the 88xx range) because utilities report fuel stocks there; the browser labels them as what they are,
+and places them where they physically sit even when EIA files them under the owning utility's state.
+
 It is built by `scripts/build_plants.py` from the monthly `electricity/facility-fuel` route and
 December snapshots of `electricity/operating-generator-capacity`, and checked by
 `scripts/verify_plants.py`, which also reconciles each state's 2024 monthly plant data against the
@@ -78,6 +84,7 @@ assets/js/plants.js        plant selection and rendering
 data/plants/index/XX.json  every plant in a state, for the plant dropdown
 data/plants/XX/<id>.json   one plant's monthly series, loaded on selection
 data/plants/points.json    every plant's location, source and size, for the map
+data/plant_locations.json  hand-sourced locations EIA's API lacks, each with its source (build input)
 assets/js/plantmap.js      the plant map
 scripts/build_plants.py    the monthly plant ETL (shares build_data.py's factors and taxonomy)
 scripts/verify_plants.py   consistency checks over the plant dataset

@@ -147,6 +147,17 @@ def main() -> int:
           "duplicate plants on the map")
     print(f"  map points: {len(pts['plants']):,}")
 
+    # hand-sourced locations: each must name a real plant and cite where it came from
+    extra = DATA / "plant_locations.json"
+    if extra.exists():
+        for r in json.loads(extra.read_text(encoding="utf-8"))["locations"]:
+            tag = f"plant_locations.json {r.get('state')}/{r.get('id')}"
+            check((PLANTS / r["state"] / f"{r['id']}.json").exists(), f"{tag}: no such plant")
+            if r.get("lat") is not None:
+                check(bool(r.get("source")) and bool(r.get("url")), f"{tag}: coordinates with no source cited")
+                check(18 <= r["lat"] <= 72 and -180 <= r["lon"] <= -64,
+                      f"{tag}: coordinates outside the United States")
+
     check(total_plants == meta["plant_count"],
           f"{total_plants} plants on disk, meta says {meta['plant_count']}")
     ratio = us_monthly_2024 / us_annual_2024 if us_annual_2024 else 0
