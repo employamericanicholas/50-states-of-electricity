@@ -77,13 +77,25 @@ def main() -> int:
           f"use one so a redeploy invalidates everything at once")
 
     # the loading placeholder needs its safety net, or a module failure hangs silently
-    index = (ROOT / "index.html").read_text(encoding="utf-8")
-    check('id="boot"' in index, "index.html has no #boot loading placeholder")
-    check("getElementById(\"boot\")" in index,
-          "index.html has no fallback that rewrites #boot if the module never loads")
+    for page_name in ("index.html", "plants.html"):
+        html = (ROOT / page_name).read_text(encoding="utf-8")
+        check('id="boot"' in html, f"{page_name} has no #boot loading placeholder")
+        check("getElementById(\"boot\")" in html,
+              f"{page_name} has no fallback that rewrites #boot if the module never loads")
+
+    # every page carries the same site navigation, and marks at most one link current
+    nav_targets = ('href="./"', 'href="./plants.html"')
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        check('class="sitenav"' in html, f"{page.name} has no site navigation")
+        for t in nav_targets:
+            check(t in html, f"{page.name} navigation is missing the link {t}")
+        check(html.count('aria-current="page"') <= 1,
+              f"{page.name} marks more than one navigation link as the current page")
 
     # anything the scripts write to must exist in the page that loads them
-    for page_name, script in (("index.html", "app.js"), ("emission-factors.html", "factors.js")):
+    for page_name, script in (("index.html", "app.js"), ("emission-factors.html", "factors.js"),
+                              ("plants.html", "plants.js")):
         html = (ROOT / page_name).read_text(encoding="utf-8")
         src = (ROOT / "assets" / "js" / script).read_text(encoding="utf-8")
         for ident in sorted(set(re.findall(r'\$\("#([A-Za-z0-9_-]+)"\)', src))):

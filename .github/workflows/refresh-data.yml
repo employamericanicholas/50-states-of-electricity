@@ -41,8 +41,16 @@ jobs:
           fi
           python scripts/build_data.py ${{ inputs.no_cache && '--no-cache' || '' }} | tee build.log
 
+      - name: Rebuild the Power Plant Browser dataset
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        # the monthly window moves forward each month, so this always refetches
+        run: python scripts/build_plants.py --workers 4 | tee -a build.log
+
       - name: Verify the rebuilt dataset
-        run: python scripts/verify_data.py
+        run: |
+          python scripts/verify_data.py
+          python scripts/verify_plants.py
 
       - name: Surface any validation warnings
         run: |

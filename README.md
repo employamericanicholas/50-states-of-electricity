@@ -27,6 +27,32 @@ except the CO₂ estimate, which is documented in full on the page and in [SOURC
   totals, so you can see how much to trust it. Nationally the all-fuel estimate lands at **99.4%**
   of EIA's figure.
 
+## Power Plant Browser
+
+The second page, [plants.html](plants.html), is reached from the menu bar next to the logo. Pick a
+state, then any plant in it — every plant that reported to EIA from January 2016 onward, listed as
+"Name (fuel)", with retired and inactive plants grouped separately so their history is still there.
+For the chosen plant it shows:
+
+- **Monthly net generation by energy source** for the last ten full years plus the current year to
+  date, with a table twin and a CSV download of every monthly series.
+- **Annual totals**, capacity factor, heat rate, rank and share among the state's plants.
+- **A year × month heatmap** of capacity factor, which makes seasonality and outages obvious.
+- **Estimated CO₂ every month** and carbon intensity, on the same method and factors as the Home page,
+  with both accounting bases.
+- **Fuel detail** by EIA fuel code, and the **generator inventory**: technology, size, online date,
+  planned retirement, and units retired since 2016.
+
+It is built by `scripts/build_plants.py` from the monthly `electricity/facility-fuel` route and
+December snapshots of `electricity/operating-generator-capacity`, and checked by
+`scripts/verify_plants.py`, which also reconciles each state's 2024 monthly plant data against the
+Home page's annual figures.
+
+```bash
+python scripts/build_plants.py      # ~10 minutes on a cold cache; reuses .cache/ after that
+python scripts/verify_plants.py
+```
+
 ## Architecture
 
 The published site is **fully static** — plain HTML, CSS and ES modules, no build step, no runtime
@@ -43,6 +69,12 @@ data/index.json            51-state index: mixes, demand, trade — loaded up fr
 data/us.json               national totals + 300 largest plants
 data/state/XX.json         one file per state, every plant, loaded on demand
 data/meta.json             sources, emission factors, methodology, provenance
+plants.html                the Power Plant Browser
+assets/js/plants.js        plant selection and rendering
+data/plants/index/XX.json  every plant in a state, for the plant dropdown
+data/plants/XX/<id>.json   one plant's monthly series, loaded on selection
+scripts/build_plants.py    the monthly plant ETL (shares build_data.py's factors and taxonomy)
+scripts/verify_plants.py   consistency checks over the plant dataset
 scripts/build_data.py      the ETL — stdlib only, no pip install
 scripts/derive_palette.mjs derives + validates the chart palette from brand colours
 ```

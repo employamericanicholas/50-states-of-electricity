@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power Plant Browser — 50 States of Electricity</title>
+<meta name="description" content="Every U.S. power plant's monthly generation, fuel use and estimated CO2 over the last ten years, built from official U.S. Energy Information Administration data.">
+<meta name="color-scheme" content="light">
+<meta property="og:title" content="Power Plant Browser — 50 States of Electricity">
+<meta property="og:description" content="Pick a state, pick a plant: ten years of monthly generation, fuel and emissions from EIA data.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./assets/css/styles.css?v=14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23104591'/%3E%3Cpath d='M9 21l4-11 3 7 2-4 5 8z' fill='%23EAC14B'/%3E%3C/svg%3E">
+</head>
+<body class="page-plants">
+
+<!-- ════════════════════════════════ masthead ════════════════════════════ -->
+<header class="masthead">
+  <div class="masthead__bar">
+    <a class="logo" href="./" aria-label="Employ America — 50 States of Electricity home">
+      <img class="logo__lockup" src="./assets/img/logo.svg" width="984" height="225"
+           alt="Employ America">
+    </a>
+    <nav class="sitenav" aria-label="Site">
+      <a href="./">Home</a>
+      <a href="./plants.html" aria-current="page">Power Plant Browser</a>
+    </nav>
+    <div class="masthead__spacer"></div>
+  </div>
+</header>
+
+<!-- ════════════════════════════════ title ═══════════════════════════════ -->
+<div class="wrap hero">
+  <h1 class="hero__display">Power Plant<br><em>Browser</em></h1>
+  <p class="hero__lede">
+    Every power plant that reported to the U.S. Energy Information Administration in the last ten
+    years — including the ones that have since shut down. Pick a state, then a plant, to see what it
+    generated every month, what it burned, and an estimate of the CO₂ that came with it.
+  </p>
+  <hr class="hero__rule">
+</div>
+
+<!-- ════════════════════════════ filter row ══════════════════════════════ -->
+<div class="filters">
+  <div class="filters__inner">
+    <label class="field">
+      <span class="field__label">State</span>
+      <select id="stateSelect"></select>
+    </label>
+    <label class="field field--wide">
+      <span class="field__label" id="plantSelectLabel">Power plant</span>
+      <select id="plantSelect" disabled></select>
+    </label>
+    <label class="field">
+      <span class="field__label">CO₂ accounting basis</span>
+      <select id="basisSelect">
+        <option value="elec">Fuel burned for electricity</option>
+        <option value="all">All fuel burned (incl. heat)</option>
+      </select>
+    </label>
+  </div>
+</div>
+
+<div class="wrap">
+  <p id="banner" class="callout" role="alert" hidden style="margin-bottom:26px"></p>
+  <p id="boot" class="empty">Loading EIA data…</p>
+
+  <div id="intro" class="card intro" hidden>
+    <p class="intro__title">Start by choosing a state</p>
+    <p>
+      The second menu then lists every plant in that state that reported to EIA from
+      <span id="introStart">2016</span> onward, with its main energy source in brackets. Plants that
+      have stopped reporting are listed separately, so retired coal and nuclear units are still here
+      with their full history.
+    </p>
+    <ul>
+      <li>Monthly net generation by energy source, for up to ten years plus this year to date</li>
+      <li>Capacity factor, heat rate and rank among the state's plants</li>
+      <li>Estimated CO₂ every month, and how carbon-intensive each megawatt-hour was</li>
+      <li>Every generator at the plant: technology, size, online date and planned retirement</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Safety net: if the module graph never loads, say so instead of hanging. -->
+<script>
+  window.setTimeout(function () {
+    var boot = document.getElementById("boot");
+    if (!boot || boot.hidden) return;
+    boot.textContent = "This is taking longer than it should. Your browser may be holding a "
+      + "cached copy of part of the site — reload with Ctrl+Shift+R (Cmd+Shift+R on a Mac).";
+  }, 8000);
+</script>
+
+<main id="main" class="wrap" hidden>
+
+  <!-- ═══════════════════════ profile ═══════════════════════ -->
+  <section class="section" id="profile" aria-labelledby="plantName">
+    <div class="section__head">
+      <p class="section__eyebrow" id="plantEyebrow">Power plant</p>
+      <h2 class="section__title" id="plantName">—</h2>
+      <div class="plant-head__meta" id="plantMeta"></div>
+    </div>
+
+    <div class="card__head" style="margin:0 0 12px">
+      <div class="card__spacer"></div>
+      <label class="field" style="flex-direction:row;align-items:center;gap:9px">
+        <span class="field__label" style="white-space:nowrap">Year shown</span>
+        <select id="yearSelect"></select>
+      </label>
+    </div>
+
+    <div class="headline">
+      <div class="figure-hero">
+        <p class="figure-hero__label" id="heroLabel">Net generation</p>
+        <span class="figure-hero__value" id="heroValue">—</span><span class="figure-hero__unit" id="heroUnit">GWh</span>
+        <p class="figure-hero__sub" id="heroSub"></p>
+      </div>
+      <div class="tiles" id="tiles"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h3 class="card__title" style="margin-bottom:10px">About this plant</h3>
+      <dl class="kv" id="factsGrid"></dl>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ monthly generation ═══════════════════════ -->
+  <section class="section" id="monthly" aria-labelledby="monthlyTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Monthly generation</p>
+      <h2 class="section__title" id="monthlyTitle">Every month, by energy source</h2>
+      <p class="section__sub">
+        Net generation is what the plant sent to the grid after its own use. Storage plants —
+        pumped hydro and batteries — draw more than they return, so their net figure sits below zero.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card__head">
+        <h3 class="card__title" id="monthlyHeading">Net generation</h3>
+        <div class="card__spacer"></div>
+        <div class="toggle" id="rangeToggle" role="group" aria-label="Time range">
+          <button type="button" data-range="all" aria-pressed="true">All years</button>
+          <button type="button" data-range="60" aria-pressed="false">5 years</button>
+          <button type="button" data-range="24" aria-pressed="false">2 years</button>
+        </div>
+        <div class="toggle" id="monthlyView" role="group" aria-label="View">
+          <button type="button" data-view="chart" aria-pressed="true">Chart</button>
+          <button type="button" data-view="table" aria-pressed="false">Table</button>
+        </div>
+      </div>
+      <p class="card__note" id="monthlyNote"></p>
+      <div id="monthlyChartView">
+        <div class="chart" id="monthlyChart"></div>
+        <ul class="legend" id="monthlyLegend"></ul>
+      </div>
+      <div id="monthlyTableView" hidden>
+        <div class="tablewrap tablewrap--tall">
+          <table class="data">
+            <caption id="monthlyCaption"></caption>
+            <thead><tr id="monthlyHead"></tr></thead>
+            <tbody id="monthlyBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="toolbar" style="margin:14px 0 0">
+        <button class="btn" id="csvBtn" type="button">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>
+          Download monthly CSV
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ year by year ═══════════════════════ -->
+  <section class="section" id="annual" aria-labelledby="annualTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Year by year</p>
+      <h2 class="section__title" id="annualTitle">How the plant's output has changed</h2>
+      <p class="section__sub" id="annualSub">
+        Annual totals, with how hard the plant ran relative to its size and where it placed among
+        the state's plants.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="card__title">Net generation by year</h3>
+        <p class="card__note" id="annualNote"></p>
+        <div class="chart" id="annualChart"></div>
+      </div>
+      <div class="card">
+        <h3 class="card__title" id="heatTitle">Capacity factor, month by month</h3>
+        <p class="card__note" id="heatNote"></p>
+        <div class="chart" id="heatChart"></div>
+        <div class="scale" id="heatScale"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h3 class="card__title">Annual summary</h3>
+      <div class="tablewrap">
+        <table class="data">
+          <caption id="annualCaption"></caption>
+          <thead>
+            <tr>
+              <th scope="col">Year</th>
+              <th scope="col" class="num">Net generation (MWh)</th>
+              <th scope="col" class="num">Capacity MW</th>
+              <th scope="col" class="num">Capacity factor</th>
+              <th scope="col" class="num">Est. CO₂ t</th>
+              <th scope="col" class="num">kg CO₂/MWh</th>
+              <th scope="col" class="num">Heat rate Btu/kWh</th>
+              <th scope="col" class="num">Rank in state</th>
+              <th scope="col" class="num">Share of state</th>
+            </tr>
+          </thead>
+          <tbody id="annualBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ emissions ═══════════════════════ -->
+  <section class="section" id="emissions" aria-labelledby="emTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Emissions</p>
+      <h2 class="section__title" id="emTitle">Estimated CO₂, every month</h2>
+      <p class="section__sub">
+        CO₂ is estimated from the fuel the plant reported burning, multiplied by EIA's emission
+        factor for each specific fuel — the same method as the Home page. It is an estimate, not a
+        stack measurement.
+      </p>
+    </div>
+
+    <div id="emNone" class="card" hidden>
+      <p class="card__note" id="emNoneText" style="margin:0"></p>
+    </div>
+    <div id="emCharts">
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card__title">Estimated CO₂ emitted</h3>
+          <p class="card__note" id="emNote"></p>
+          <div class="chart" id="emChart"></div>
+        </div>
+        <div class="card">
+          <h3 class="card__title">Carbon intensity</h3>
+          <p class="card__note" id="intNote"></p>
+          <div class="chart" id="intChart"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <dl class="kv" id="emGrid"></dl>
+        <p class="card__note" id="emFoot" style="margin:18px 0 0" hidden></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ fuels ═══════════════════════ -->
+  <section class="section" id="fuels" aria-labelledby="fuelTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Fuel</p>
+      <h2 class="section__title" id="fuelTitle">What it burned, and what that is worth in CO₂</h2>
+      <p class="section__sub">
+        Each EIA fuel code the plant reported, with the emission factor applied to it. Heat rate is
+        fuel in divided by electricity out: the lower it is, the less fuel each kilowatt-hour takes.
+      </p>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:20px">
+        <h3 class="card__title">Heat rate</h3>
+        <p class="card__note" id="hrNote"></p>
+        <div class="chart" id="hrChart"></div>
+      </div>
+      <div class="card">
+        <h3 class="card__title" id="fuelTableTitle">By fuel</h3>
+        <div class="tablewrap">
+          <table class="data">
+            <caption id="fuelCaption"></caption>
+            <thead>
+              <tr>
+                <th scope="col">Fuel</th>
+                <th scope="col" class="num">Generation MWh</th>
+                <th scope="col" class="num">Fuel MMBtu</th>
+                <th scope="col" class="num">kg CO₂/MMBtu</th>
+                <th scope="col">Treatment</th>
+              </tr>
+            </thead>
+            <tbody id="fuelBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ generators ═══════════════════════ -->
+  <section class="section" id="generators" aria-labelledby="genTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Generators</p>
+      <h2 class="section__title" id="genTitle">The units inside the plant</h2>
+      <p class="section__sub">
+        From EIA's monthly generator inventory (Form EIA-860M). A generator that drops out of the
+        inventory is shown as retired or removed, dated by the last inventory it appeared in.
+      </p>
+    </div>
+    <div class="card">
+      <div class="tablewrap">
+        <table class="data">
+          <caption id="genCaption"></caption>
+          <thead>
+            <tr>
+              <th scope="col">Generator</th>
+              <th scope="col">Technology</th>
+              <th scope="col">Fuel</th>
+              <th scope="col" class="num">Nameplate MW</th>
+              <th scope="col" class="num">Summer MW</th>
+              <th scope="col">Online</th>
+              <th scope="col">Planned retirement</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody id="genBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ notes ═══════════════════════ -->
+  <section class="section" id="notes" aria-labelledby="notesTitle">
+    <div class="section__head">
+      <p class="section__eyebrow">Sources &amp; method</p>
+      <h2 class="section__title" id="notesTitle">How to read these numbers</h2>
+    </div>
+    <div class="card">
+      <div id="noteBodies"></div>
+      <p class="card__note" style="margin:16px 0 0">
+        The emission factor applied to every fuel, with its EIA citation, is on
+        <a href="./emission-factors.html">CO₂ emission factors used &rarr;</a>
+      </p>
+    </div>
+  </section>
+</main>
+
+<!-- ════════════════════════════════ footer ══════════════════════════════ -->
+<footer class="foot">
+  <div class="wrap">
+    <div>
+      <div class="foot__brand">
+        <img class="logo__lockup logo__lockup--foot" src="./assets/img/logo.svg"
+             width="984" height="225" alt="Employ America">
+      </div>
+      <p style="margin-top:14px">
+        Strategies for the full employment of workers, resources, and technologies.
+        Data from the <a href="https://www.eia.gov/opendata/" rel="noopener" target="_blank">U.S. Energy
+        Information Administration Open Data API</a>. EIA data are in the public domain; this
+        dashboard is not affiliated with or endorsed by EIA.
+      </p>
+      <p style="margin-top:10px"><a href="./emission-factors.html">CO&#8322; emission factors used</a></p>
+    </div>
+    <div class="foot__right">
+      <div id="builtStamp"></div>
+      <div style="margin-top:6px" id="windowStamp">Form EIA-923 / EIA-860M, monthly</div>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="./assets/js/plants.js?v=14"></script>
+</body>
+</html>

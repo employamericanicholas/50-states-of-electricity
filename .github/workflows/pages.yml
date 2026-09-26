@@ -34,6 +34,8 @@ jobs:
             test -f "$f" || { echo "::error::missing $f — run scripts/build_data.py and commit data/"; exit 1; }
           done
           python scripts/verify_data.py
+          test -f data/plants/meta.json || { echo "::error::missing data/plants — run scripts/build_plants.py and commit data/"; exit 1; }
+          python scripts/verify_plants.py
 
       - name: Verify the front-end asset wiring
         # catches unversioned module imports, which cache independently and can

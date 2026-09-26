@@ -524,6 +524,322 @@ export function stackedBar(host, parts, opts = {}) {
   return svg;
 }
 
+/* ======================================================================
+   Time-series primitives for the Power Plant Browser. Months run into the
+   hundreds, so marks here do not each take a tab stop: the chart itself is
+   one focus target and the arrow keys walk it, showing the same readout as
+   hover.
+   ====================================================================== */
+
+/** Round axis ticks spanning [lo, hi]: steps of 1, 2 or 5 x 10^k. */
+export function niceTicks(lo, hi, n = 5) {
+  if (lo === hi) hi = lo + 1;
+  const raw = (hi - lo) / n;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const e = raw / mag;
+  const step = (e <= 1 ? 1 : e <= 2 ? 2 : e <= 5 ? 5 : 10) * mag;
+  const out = [];
+  for (let v = Math.floor(lo / step) * step; v <= hi + step * 1e-9; v += step) {
+    out.push(Math.round(v / step) * step);
+  }
+  if (out[out.length - 1] < hi) out.push(out[out.length - 1] + step);
+  return out;
+}
+
+/** Hover readout without a tab stop; keyboard access comes from keyNav. */
+function hoverOnly(node, read) {
+  node.addEventListener("pointerenter", (e) => { node.dataset.hover = "1"; read(e); });
+  node.addEventListener("pointermove", moveTip);
+  node.addEventListener("pointerleave", () => { node.dataset.hover = "0"; hideTip(); });
+}
+
+/**
+ * One focus stop for a whole chart. Left/right (and up/down, for a grid) move an
+ * active index; `show(i)` draws the readout for it.
+ */
+function keyNav(svg, count, show, { cols = 0, label = "" } = {}) {
+  svg.setAttribute("tabindex", "0");
+  svg.setAttribute("aria-label", `${label}${label ? ". " : ""}Use the arrow keys to read each value.`);
+  let i = -1;
+  svg.addEventListener("focus", () => { if (i < 0) i = count - 1; show(i); });
+  svg.addEventListener("blur", hideTip);
+  svg.addEventListener("keydown", (e) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols }[e.key];
+    let j = i;
+    if (e.key === "Home") j = 0;
+    else if (e.key === "End") j = count - 1;
+    else if (step) j = Math.max(0, Math.min(count - 1, i + step));
+    else return;
+    e.preventDefault();
+    i = j;
+    show(i);
+  });
+}
+
+/** Client coordinates of an SVG user-space point (the SVG draws at 1:1 width). */
+function clientAt(svg, x, y) {
+  const b = svg.getBoundingClientRect();
+  const k = b.width / (svg.viewBox.baseVal.width || b.width);
+  return { clientX: b.left + x * k, clientY: b.top + y * k };
+}
+
+/** Left gutter wide enough for the widest tick label. */
+const gutterFor = (labels) => Math.ceil(Math.max(...labels.map((s) => textW(s, 12)))) + 14;
+
+/** X-axis labels, skipping any that would collide with the previous one. */
+function xLabels(svg, n, xAt, labelOf, y) {
+  let lastRight = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const s = labelOf(i);
+    if (!s) continue;
+    const x = xAt(i);
+    const w = textW(s, 12);
+    if (x - w / 2 < lastRight + 10) continue;
+    text(svg, s, { x, y, "text-anchor": "middle", class: "axis-text" });
+    lastRight = x + w / 2;
+  }
+}
+
+/* ======================================================================
+   Columns — one per period, stacked by source. Negative parts (pumped
+   storage, batteries: net consumers) hang below the zero line.
+   items: [{ label, parts: [{ label, value, color }], meta? }]
+   ====================================================================== */
+export function columns(host, items, opts = {}) {
+  const { height = 280, fmt = String, tickFmt = fmt, xLabel = () => null,
+          capLabels = false, totalLabel = "Total", ariaLabel = "" } = opts;
+  clear(host);
+  if (!items.length) { host.innerHTML = '<p class="empty">Nothing to show.</p>'; return; }
+
+  const W = hostWidth(host);
+  const narrow = isNarrow(W);
+  const H = narrow ? Math.round(height * 0.84) : height;
+  const pos = items.map((d) => d.parts.reduce((s, p) => s + (p.value > 0 ? p.value : 0), 0));
+  const neg = items.map((d) => d.parts.reduce((s, p) => s + (p.value < 0 ? p.value : 0), 0));
+  // A negative sliver under 2% of the peak (a plant's own use in an idle month)
+  // would otherwise buy a whole negative tick; it is clamped to the baseline and
+  // stays exact in the readout and the table.
+  const maxPos = Math.max(0, ...pos);
+  const minNeg = Math.min(0, ...neg);
+  const floor = -minNeg < maxPos * 0.02 ? 0 : minNeg;
+  const ticks = niceTicks(floor, maxPos, narrow ? 4 : 5);
+  const lo = ticks[0], hi = ticks[ticks.length - 1];
+  const padL = gutterFor(ticks.map(tickFmt)), padR = 6, padT = capLabels ? 22 : 10, padB = 26;
+  const plotW = Math.max(40, W - padL - padR), plotH = H - padT - padB;
+  const y = (v) => padT + ((hi - Math.max(lo, v)) / (hi - lo)) * plotH;
+
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, role: "group" }, host);
+  for (const t of ticks) {
+    el("line", { x1: padL, x2: W - padR, y1: y(t), y2: y(t),
+                 class: t === 0 ? "grid-line grid-line--zero" : "grid-line" }, svg);
+    text(svg, tickFmt(t), { x: padL - 8, y: y(t) + 4, "text-anchor": "end", class: "axis-text" });
+  }
+
+  const slot = plotW / items.length;
+  const gap = slot >= 8 ? GAP : slot >= 4 ? 1 : 0;
+  const barW = Math.max(0.6, Math.min(BAR_MAX, slot - gap));
+  const r = Math.min(RADIUS, barW / 3);
+  const xAt = (i) => padL + i * slot + slot / 2;
+
+  const read = (i) => {
+    const d = items[i];
+    const rows = d.parts.filter((p) => p.value !== 0)
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+      .map((p) => ({ value: fmt(p.value), label: p.label, color: p.color }));
+    const sum = pos[i] + neg[i];
+    const meta = d.meta ?? (rows.length > 1 ? `${totalLabel}: ${fmt(sum)}` : null);
+    return { title: d.label, rows: rows.length ? rows : [{ value: fmt(0), label: "net generation" }], meta };
+  };
+
+  const groups = items.map((d, i) => {
+    const g = el("g", { class: "mark" }, svg);
+    // the hit target is the whole slot, so a thin month is still easy to land on
+    el("rect", { x: padL + i * slot, y: padT, width: slot, height: plotH, fill: "transparent" }, g);
+    const x = xAt(i) - barW / 2;
+    for (const sign of [1, -1]) {
+      const parts = d.parts.filter((p) => (sign > 0 ? p.value > 0 : p.value < 0));
+      let base = 0;
+      parts.forEach((p, j) => {
+        const y0 = y(base), y1 = y(base + p.value);
+        base += p.value;
+        let top = Math.min(y0, y1), h = Math.abs(y1 - y0);
+        const outer = j === parts.length - 1;
+        // surface gap between stacked segments, carved from the inner one
+        if (!outer && h > GAP + 1) { h -= GAP; if (sign > 0) top += GAP; }
+        if (h < 0.3) return;
+        if (outer && h > r * 2) {
+          el("path", { d: sign > 0 ? barPath(x, top, barW, h, r, "v")
+            : `M${x} ${top}h${barW}v${h - r}a${r} ${r} 0 0 1 ${-r} ${r}h${-(barW - 2 * r)}a${r} ${r} 0 0 1 ${-r} ${-r}z`,
+                       fill: p.color }, g);
+        } else {
+          el("rect", { x, y: top, width: barW, height: h, fill: p.color }, g);
+        }
+      });
+    }
+    if (capLabels && pos[i] + neg[i] !== 0) {
+      const s = fmt(pos[i] + neg[i]);
+      if (textW(s, 11.5, 700) < slot - 2) {
+        text(g, s, { x: xAt(i), y: y(pos[i]) - 7, "text-anchor": "middle",
+                     class: "mark-label", "font-size": 11.5 });
+      }
+    }
+    hoverOnly(g, (e) => { const t = read(i); showTip(e, t.title, t.rows, t.meta); });
+    return g;
+  });
+
+  xLabels(svg, items.length, xAt, xLabel, H - 7);
+
+  keyNav(svg, items.length, (i) => {
+    groups.forEach((g, k) => { g.dataset.hover = k === i ? "1" : "0"; });
+    const t = read(i);
+    showTip(clientAt(svg, xAt(i), y(pos[i])), t.title, t.rows, t.meta);
+  }, { label: ariaLabel });
+  svg.addEventListener("blur", () => groups.forEach((g) => { g.dataset.hover = "0"; }));
+  return svg;
+}
+
+/* ======================================================================
+   Line — one series over time, with a crosshair that snaps to the nearest
+   period. Nulls break the line rather than being drawn as zero.
+   items: [{ label, value | null, meta? }]
+   ====================================================================== */
+export function line(host, items, opts = {}) {
+  const { height = 240, fmt = String, tickFmt = fmt, xLabel = () => null,
+          color = "var(--ink-strong)", name = "", ariaLabel = "" } = opts;
+  clear(host);
+  const vals = items.map((d) => d.value).filter((v) => v !== null && Number.isFinite(v));
+  if (!vals.length) { host.innerHTML = '<p class="empty">Nothing to show.</p>'; return; }
+
+  const W = hostWidth(host);
+  const narrow = isNarrow(W);
+  const H = narrow ? Math.round(height * 0.84) : height;
+  const ticks = niceTicks(Math.min(0, ...vals), Math.max(...vals), narrow ? 4 : 5);
+  const lo = ticks[0], hi = ticks[ticks.length - 1];
+  const padL = gutterFor(ticks.map(tickFmt)), padR = 10, padT = 12, padB = 26;
+  const plotW = Math.max(40, W - padL - padR), plotH = H - padT - padB;
+  const slot = plotW / items.length;
+  const xAt = (i) => padL + i * slot + slot / 2;
+  const y = (v) => padT + ((hi - v) / (hi - lo)) * plotH;
+
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, role: "group" }, host);
+  for (const t of ticks) {
+    el("line", { x1: padL, x2: W - padR, y1: y(t), y2: y(t), class: "grid-line" }, svg);
+    text(svg, tickFmt(t), { x: padL - 8, y: y(t) + 4, "text-anchor": "end", class: "axis-text" });
+  }
+
+  // one path per unbroken run; a run of one point gets a dot so it is not lost
+  let run = [];
+  const flush = () => {
+    if (run.length === 1) {
+      el("circle", { cx: run[0][0], cy: run[0][1], r: 2.5, style: `fill:${color}` }, svg);
+    } else if (run.length > 1) {
+      el("path", { d: run.map(([x, yy], k) => `${k ? "L" : "M"}${x} ${yy}`).join(""),
+                   fill: "none", style: `stroke:${color}`, "stroke-width": 2,
+                   "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    }
+    run = [];
+  };
+  items.forEach((d, i) => {
+    if (d.value === null || !Number.isFinite(d.value)) flush();
+    else run.push([xAt(i), y(d.value)]);
+  });
+  flush();
+
+  xLabels(svg, items.length, xAt, xLabel, H - 7);
+
+  const cross = el("line", { y1: padT, y2: padT + plotH, class: "crosshair", opacity: 0 }, svg);
+  // colours go through style, where var() is reliable in every browser
+  const dot = el("circle", { r: 4, style: `fill:${color};stroke:var(--surface)`, "stroke-width": 2,
+                             opacity: 0 }, svg);
+  const show = (i, evt) => {
+    const d = items[i];
+    const ok = d.value !== null && Number.isFinite(d.value);
+    cross.setAttribute("x1", xAt(i)); cross.setAttribute("x2", xAt(i));
+    cross.setAttribute("opacity", 1);
+    dot.setAttribute("cx", xAt(i)); dot.setAttribute("cy", ok ? y(d.value) : 0);
+    dot.setAttribute("opacity", ok ? 1 : 0);
+    showTip(evt || clientAt(svg, xAt(i), ok ? y(d.value) : padT), d.label,
+      [{ value: ok ? fmt(d.value) : "—", label: ok ? name : "not available", color: ok ? color : null }],
+      d.meta || null);
+  };
+  const off = () => { cross.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); hideTip(); };
+  const hit = el("rect", { x: padL, y: padT, width: plotW, height: plotH, fill: "transparent" }, svg);
+  const idxAt = (e) => {
+    const b = svg.getBoundingClientRect();
+    const x = (e.clientX - b.left) * (W / b.width);
+    return Math.max(0, Math.min(items.length - 1, Math.floor((x - padL) / slot)));
+  };
+  hit.addEventListener("pointermove", (e) => show(idxAt(e), e));
+  hit.addEventListener("pointerleave", off);
+  keyNav(svg, items.length, (i) => show(i), { label: ariaLabel });
+  svg.addEventListener("blur", off);
+  return svg;
+}
+
+/* ======================================================================
+   Heatmap — a grid of cells, e.g. years down, months across.
+   cell(r, c) -> { value, color, label?, title, rows, meta? } | null
+   ====================================================================== */
+export function heatmap(host, rowLabels, colLabels, cell, opts = {}) {
+  const { ariaLabel = "", shortCols = colLabels.map((c) => c[0]) } = opts;
+  clear(host);
+  const W = hostWidth(host);
+  const narrow = isNarrow(W);
+  const labelW = 46, headH = 22;
+  const cellH = narrow ? 24 : 30;
+  const cellW = (W - labelW) / colLabels.length;
+  const H = headH + rowLabels.length * cellH;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, style: `height:${H}px`, role: "group" }, host);
+
+  const cols = cellW < 34 ? shortCols : colLabels;
+  cols.forEach((c, j) => text(svg, c, { x: labelW + j * cellW + cellW / 2, y: 14,
+                                         "text-anchor": "middle", class: "axis-text" }));
+  rowLabels.forEach((rl, i) => text(svg, rl, { x: labelW - 10, y: headH + i * cellH + cellH / 2 + 4,
+                                               "text-anchor": "end", class: "axis-text" }));
+
+  const nodes = [];
+  rowLabels.forEach((_, i) => colLabels.forEach((__, j) => {
+    const c = cell(i, j);
+    const x = labelW + j * cellW, yy = headH + i * cellH;
+    const g = el("g", { class: "mark" }, svg);
+    el("rect", { x: x + GAP / 2, y: yy + GAP / 2, width: cellW - GAP, height: cellH - GAP, rx: 2,
+                 style: `fill:${c ? c.color : "var(--surface-sunk)"}` }, g);
+    if (c && c.label && c.color.startsWith("#") && textW(c.label, 11, 700) < cellW - 8) {
+      text(g, c.label, { x: x + cellW / 2, y: yy + cellH / 2 + 4, "text-anchor": "middle",
+                         "font-size": 11,
+                         class: inkOn(c.color) === "inv" ? "mark-label mark-label--inv" : "mark-label" });
+    }
+    const read = (evt) => {
+      if (!c) { showTip(evt, `${colLabels[j]} ${rowLabels[i]}`, [{ value: "No data" }]); return; }
+      showTip(evt, c.title, c.rows, c.meta || null);
+    };
+    hoverOnly(g, read);
+    nodes.push({ g, read, x: x + cellW / 2, y: yy });
+  }));
+
+  keyNav(svg, nodes.length, (k) => {
+    nodes.forEach((n, m) => { n.g.dataset.hover = m === k ? "1" : "0"; });
+    nodes[k].read(clientAt(svg, nodes[k].x, nodes[k].y));
+  }, { cols: colLabels.length, label: ariaLabel });
+  svg.addEventListener("blur", () => nodes.forEach((n) => { n.g.dataset.hover = "0"; }));
+  return svg;
+}
+
+/**
+ * Sequential blue, light -> dark, for magnitude (the heatmap). One hue only;
+ * the lightest step means "near zero" and is allowed to recede.
+ */
+const SEQ_BLUE = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"];
+export function seqColor(t) {
+  const u = Math.max(0, Math.min(1, t)) * (SEQ_BLUE.length - 1);
+  const k = Math.min(SEQ_BLUE.length - 2, Math.floor(u));
+  const f = u - k;
+  const a = SEQ_BLUE[k], b = SEQ_BLUE[k + 1];
+  const ch = (s, o) => parseInt(s.slice(o, o + 2), 16);
+  const mix = [1, 3, 5].map((o) => Math.round(ch(a, o) + (ch(b, o) - ch(a, o)) * f));
+  return `#${mix.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Redraw on container resize, debounced. */
 export function onResize(fn) {
   let t = null;
