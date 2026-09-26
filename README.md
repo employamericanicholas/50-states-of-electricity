@@ -32,6 +32,10 @@ except the CO₂ estimate, which is documented in full on the page and in [SOURC
 The second page, [plants.html](plants.html), is reached from the menu bar next to the logo. Pick a
 state, then any plant in it — every plant that reported to EIA from January 2016 onward, listed as
 "Name (fuel)", with retired and inactive plants grouped separately so their history is still there.
+Above the menus, a zoomable map shows all of them — every plant with coordinates on file, coloured by
+energy source and sized by capacity, filterable by source — and selecting a dot opens that plant. The
+map uses [Leaflet](https://leafletjs.com/) from cdnjs (pinned with an integrity hash) over
+OpenStreetMap tiles; everything else on the site stays dependency-free, and the menus work without it.
 For the chosen plant it shows:
 
 - **Monthly net generation by energy source** for the last ten full years plus the current year to
@@ -73,6 +77,8 @@ plants.html                the Power Plant Browser
 assets/js/plants.js        plant selection and rendering
 data/plants/index/XX.json  every plant in a state, for the plant dropdown
 data/plants/XX/<id>.json   one plant's monthly series, loaded on selection
+data/plants/points.json    every plant's location, source and size, for the map
+assets/js/plantmap.js      the plant map
 scripts/build_plants.py    the monthly plant ETL (shares build_data.py's factors and taxonomy)
 scripts/verify_plants.py   consistency checks over the plant dataset
 scripts/build_data.py      the ETL — stdlib only, no pip install

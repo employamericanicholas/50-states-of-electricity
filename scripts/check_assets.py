@@ -51,6 +51,20 @@ def main() -> int:
                     entry_versions.add(ver)
                     versions.setdefault(path, set()).add(ver)
 
+    # third-party code runs only when pinned: an external script or stylesheet must
+    # carry an integrity hash, so a changed CDN file is refused rather than run
+    # (Google Fonts serves per-browser CSS, so it cannot be hashed and is exempt)
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        for tag in re.findall(r"<(?:script|link)\b[^>]*>", html):
+            m = re.search(r'(?:src|href)="(https://[^"]+)"', tag)
+            if not m or "fonts.googleapis.com" in m.group(1) or "fonts.gstatic.com" in m.group(1):
+                continue
+            if tag.startswith("<link") and 'rel="stylesheet"' not in tag:
+                continue
+            check('integrity="sha' in tag and "crossorigin" in tag,
+                  f"{page.name} loads {m.group(1)} without an integrity hash and crossorigin")
+
     # every internal import inside a module must carry a version too, and it must
     # match the entry point's — this is the exact failure described above
     for js in sorted((ROOT / "assets" / "js").glob("*.js")):

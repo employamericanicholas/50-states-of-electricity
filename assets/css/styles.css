@@ -474,6 +474,47 @@ details.method .method__body li { margin-bottom: 6px; }
 .intro li { margin-bottom: 5px; }
 .kv a { font: inherit; }
 
+/* ---------- plant map ---------- */
+.mapsec { margin-bottom: 22px; }
+/* z-index 0 makes the map its own stacking context, so Leaflet's panes (z 400+)
+   cannot paint over the sticky filter bar as the page scrolls past */
+.plantmap {
+  position: relative; z-index: 0; height: 540px; margin-top: 4px;
+  border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface-sunk);
+}
+.plantmap--failed {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  height: auto; min-height: 120px; padding: 24px; color: var(--ink-muted); font-size: 14px;
+}
+/* OSM's full-colour style would compete with the source colours on the dots */
+.plantmap .leaflet-tile-pane { filter: grayscale(1) contrast(.82) brightness(1.08); opacity: .75; }
+.plantmap .leaflet-control-attribution { font: 400 11px/1.4 var(--font-body); }
+.plantmap .leaflet-control-zoom a { color: var(--ink-strong); }
+.mapsel { margin: 12px 0 0; font: 400 14px/1.45 var(--font-body); color: var(--ink-muted); }
+.mapsel b { color: var(--ink-strong); }
+.maplegend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.maplegend button {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  border: 1px solid var(--rule-strong); background: var(--surface); border-radius: 999px;
+  padding: 5px 11px 5px 9px; font: 600 12.5px/1.2 var(--font-sub); color: var(--ink-strong);
+}
+.maplegend button:hover { border-color: var(--link); }
+.maplegend button i { width: 10px; height: 10px; border-radius: 50%; display: block; flex: none; }
+.maplegend button b { font-weight: 600; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+/* a hidden source reads as switched off: struck through, swatch hollowed */
+.maplegend button[aria-pressed="false"] { color: var(--ink-faint); background: var(--surface-sunk); }
+.maplegend button[aria-pressed="false"] span { text-decoration: line-through; }
+.maplegend button[aria-pressed="false"] i { background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--rule-strong); }
+.maplegend__retired i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-faint); opacity: .7; }
+/* the hover label, in the same deep blue as the chart readouts */
+.leaflet-tooltip.planttip {
+  background: var(--deep-blue); color: #c3c9dd; border: 0; border-radius: var(--radius);
+  padding: 7px 10px; box-shadow: 0 10px 30px -8px rgba(0, 0, 0, .5);
+  font: 400 12px/1.4 var(--font-body);
+}
+.leaflet-tooltip.planttip::before { border-top-color: var(--deep-blue); }
+.planttip__title { font: 700 13px/1.3 var(--font-sub); color: var(--warm-white); margin-bottom: 2px; }
+
 /* ==========================================================================
    Mobile. Everything below lives inside a max-width query, so the desktop
    rendering above is untouched by definition. The charts handle their own
@@ -526,6 +567,7 @@ details.method .method__body li { margin-bottom: 6px; }
 
 @media (max-width: 700px) {
   .field--wide select { min-width: 0; }
+  .plantmap { height: 420px; }
 }
 /* On a phone the nav takes its own row under the logo. */
 @media (max-width: 560px) {

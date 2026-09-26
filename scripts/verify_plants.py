@@ -135,6 +135,18 @@ def main() -> int:
             warn(0.97 <= ratio <= 1.03,
                  f"{code}: 2024 monthly plant data is {ratio:.1%} of the Home page's annual figure")
 
+    # every dot on the map must open a real plant, and sit on the globe
+    pts = json.loads((PLANTS / "points.json").read_text(encoding="utf-8"))
+    F = {f: i for i, f in enumerate(pts["fields"])}
+    for r in pts["plants"]:
+        check((PLANTS / r[F["state"]] / f"{r[F['id']]}.json").exists(),
+              f"map point {r[F['state']]}/{r[F['id']]} has no plant file")
+        check(-90 <= r[F["lat"]] <= 90 and -180 <= r[F["lon"]] <= 180,
+              f"map point {r[F['state']]}/{r[F['id']]} has impossible coordinates")
+    check(len({(r[F["state"]], r[F["id"]]) for r in pts["plants"]}) == len(pts["plants"]),
+          "duplicate plants on the map")
+    print(f"  map points: {len(pts['plants']):,}")
+
     check(total_plants == meta["plant_count"],
           f"{total_plants} plants on disk, meta says {meta['plant_count']}")
     ratio = us_monthly_2024 / us_annual_2024 if us_annual_2024 else 0

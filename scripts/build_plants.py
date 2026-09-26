@@ -433,6 +433,8 @@ def build():
 
     warnings: list[str] = []
     n_plants = 0
+    points: list[list] = []          # every plant with coordinates, for the map
+    labels: list[str] = []           # fuel labels, stored once and referenced by index
     active_cut = month_add(end, -6)
     for state in sorted(STATES):
         plants, w = build_state_plants(state_rows[state], months)
@@ -542,12 +544,32 @@ def build():
             })
             n_plants += 1
 
+            lat, lon = g["meta"].get("lat"), g["meta"].get("lon")
+            if lat is not None and lon is not None:
+                if flabel not in labels:
+                    labels.append(flabel)
+                # size a retired plant by the most it had in service in the window
+                size = cap_now or max(cap_m, default=0) or None
+                points.append([pid, state, round(lat, 3), round(lon, 3),
+                               DETAIL_ORDER.index(primary), labels.index(flabel),
+                               1 if is_active else 0, r2(size, 1) if size else None, p["name"]])
+
         idx_rows.sort(key=lambda r: (r["name"].lower(), r["id"]))
         written.add(write_json(OUT / "index" / f"{state}.json", {
             "state": state, "name": STATES[state], "start": start, "end": end,
             "plants": idx_rows,
         }))
         print(f"  {state}: {len(idx_rows):,} plants", flush=True)
+
+    # One national file for the map: columnar rows, largest plants first so the
+    # small ones draw on top of them. ~14,500 rows, about 250 KB once compressed.
+    points.sort(key=lambda r: -(r[7] or 0))
+    written.add(write_json(OUT / "points.json", {
+        "fields": ["id", "state", "lat", "lon", "primary", "fuel_label", "active",
+                   "capacity_mw", "name"],
+        "detail_order": DETAIL_ORDER, "fuel_labels": labels, "plants": points,
+    }))
+    print(f"  map: {len(points):,} of {n_plants:,} plants have coordinates")
 
     stale = [f for f in OUT.rglob("*.json") if f not in written and f.name != "meta.json"]
     for f in stale:

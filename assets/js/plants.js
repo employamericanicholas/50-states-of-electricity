@@ -7,7 +7,8 @@
 
 // Keep the ?v= in step with plants.html, for the reason given in app.js.
 import { columns, line, heatmap, seqColor, clear, onResize, hideTip, pctLabel }
-  from "./charts.js?v=14";
+  from "./charts.js?v=15";
+import { createPlantMap } from "./plantmap.js?v=15";
 
 const DATA = "./data";
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -25,6 +26,8 @@ const S = {
   range: "all",
   monthlyView: "chart",
   usIntensity: null,  // U.S. kg CO2/MWh, 2024, from the Home page dataset
+  map: null,          // the plant map, once Leaflet and points.json are in
+  req: 0,             // bumped per selection, so a slow earlier load cannot win
 };
 
 /* ---------- formatting (the same conventions as the Home page) ---------- */
@@ -228,33 +231,47 @@ function fillPlants() {
   $("#plantSelectLabel").textContent = `Power plant — ${nf(S.index.plants.length)} in ${S.index.name}`;
 }
 
-async function selectState(code, { plant = null, push = true } = {}) {
+/**
+ * `view` says what the map does: "state" frames the whole state (the state menu),
+ * "zoom" closes in on the plant (the plant menu, a shared link), "none" leaves the
+ * map where the reader put it (a click on the map itself).
+ */
+async function selectState(code, { plant = null, push = true, view = "state" } = {}) {
   if (!S.meta.states.some((s) => s.code === code)) return;
-  S.state = code;
+  const req = ++S.req;
   $("#stateSelect").value = code;
   const sel = $("#plantSelect");
   sel.disabled = true;
+  if (view === "state") S.map?.fitState(code);
   try {
-    S.index = await getJSON(`${DATA}/plants/index/${code}.json`);
+    const index = await getJSON(`${DATA}/plants/index/${code}.json`);
+    if (req !== S.req) return;
+    // S.state changes only with its index, so the two always describe the same state
+    S.state = code;
+    S.index = index;
     fillPlants();
     // Land on something useful straight away: the named plant, else the state's
     // largest generator over the latest twelve months.
     const pick = (plant && S.index.plants.find((p) => p.id === plant))
       || S.index.plants.slice().sort((a, b) => b.gen_last12_mwh - a.gen_last12_mwh)[0];
-    if (pick) await selectPlant(pick.id, { push });
+    if (pick) await selectPlant(pick.id, { push, view: view === "state" ? "none" : view });
   } catch (e) {
     console.error(e);
     showFatal(`Could not load the plant list for ${code}. ${e.message}`);
   }
 }
 
-async function selectPlant(id, { push = true } = {}) {
+async function selectPlant(id, { push = true, view = "zoom" } = {}) {
   const main = $("#main");
+  const req = ++S.req;
   main.classList.add("is-loading");
   hideTip();
   try {
     const doc = await getJSON(`${DATA}/plants/${S.state}/${id}.json`);
+    if (req !== S.req) return;
     S.plant = derive(doc);
+    S.map?.select(S.state, id, { view });
+    showMapSelection();
     S.year = defaultYear(S.plant);
     $("#plantSelect").value = id;
     $("#intro").hidden = true;
@@ -941,7 +958,7 @@ function showFatal(msg) {
 
 function wireUI() {
   $("#stateSelect").addEventListener("change", (e) => selectState(e.target.value));
-  $("#plantSelect").addEventListener("change", (e) => selectPlant(e.target.value));
+  $("#plantSelect").addEventListener("change", (e) => selectPlant(e.target.value, { view: "zoom" }));
   $("#yearSelect").addEventListener("change", (e) => {
     S.year = Number(e.target.value);
     renderProfile(); renderAnnual(); renderEmissions(); renderFuels();
@@ -973,8 +990,8 @@ function wireUI() {
     const st = e.state?.state || q.get("state");
     const pl = e.state?.plant || q.get("plant");
     if (!st) return;
-    if (st === S.state && pl) selectPlant(pl, { push: false });
-    else selectState(st, { plant: pl, push: false });
+    if (st === S.state && pl) selectPlant(pl, { push: false, view: "zoom" });
+    else selectState(st, { plant: pl, push: false, view: "zoom" });
   });
 
   onResize(() => {
@@ -982,6 +999,51 @@ function wireUI() {
     if (S.monthlyView === "chart") renderMonthly();
     renderAnnual(); renderEmissions(); renderFuels();
   });
+}
+
+/* ==========================================================================
+   Map
+   ========================================================================== */
+async function loadMap() {
+  const host = $("#plantMap");
+  try {
+    const points = await getJSON(`${DATA}/plants/points.json`);
+    S.map = createPlantMap(host, points, {
+      colorOf: sourceColor,
+      labelOf: label,
+      legendHost: $("#mapLegend"),
+      countHost: $("#mapCount"),
+      onSelect: (state, id) => {
+        if (S.index && state === S.index.state) selectPlant(id, { view: "none" });
+        else selectState(state, { plant: id, view: "none" });
+      },
+    });
+    if (!S.map) throw new Error("the map library did not load");
+    const missing = S.meta.plant_count - points.plants.length;
+    if (missing > 0) {
+      $("#mapMissing").textContent = `${nf(missing)} plants have no location on file with EIA, so they `
+        + "appear in the menus below but not on the map.";
+    }
+    // a plant chosen before the map finished loading (a shared link, say)
+    if (S.plant) S.map.select(S.state, S.plant.id, { view: "zoom", animate: false });
+  } catch (e) {
+    console.error(e);
+    host.classList.add("plantmap--failed");
+    host.textContent = `The map could not load (${e.message}). Every plant is still available from the `
+      + "state and plant menus below.";
+  }
+}
+
+/** A line under the map naming the selected plant, linking down to its details. */
+function showMapSelection() {
+  const hint = $("#mapSelected");
+  if (!hint || !S.plant) return;
+  clear(hint);
+  hint.append(document.createTextNode("Selected: "),
+    Object.assign(document.createElement("b"), { textContent: `${S.plant.name} (${S.plant.fuel_label})` }),
+    document.createTextNode(`, ${S.plant.state_name}. `),
+    Object.assign(document.createElement("a"), { href: "#profile", textContent: "Jump to its details ↓" }));
+  hint.hidden = false;
 }
 
 async function main() {
@@ -1001,11 +1063,12 @@ async function main() {
     $("#builtStamp").textContent = `Data built ${meta.generated_utc.replace("T", " ").replace("Z", " UTC")}`;
     $("#windowStamp").textContent = `${monthName(meta.start)} – ${monthName(meta.end)} · Form EIA-923 / EIA-860M`;
     $("#boot").hidden = true;
+    loadMap();   // not awaited: the menus work while the map's 14,500 points arrive
 
     const q = new URLSearchParams(location.search);
     const st = (q.get("state") || "").toUpperCase();
     if (st && meta.states.some((s) => s.code === st)) {
-      await selectState(st, { plant: q.get("plant"), push: false });
+      await selectState(st, { plant: q.get("plant"), push: false, view: "zoom" });
     } else {
       $("#intro").hidden = false;
     }

@@ -12,7 +12,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/css/styles.css?v=14">
+<!-- Leaflet for the plant map, pinned to one version with an integrity hash -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+      integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
+      crossorigin="anonymous" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="./assets/css/styles.css?v=15">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23104591'/%3E%3Cpath d='M9 21l4-11 3 7 2-4 5 8z' fill='%23EAC14B'/%3E%3C/svg%3E">
 </head>
 <body class="page-plants">
@@ -37,11 +41,35 @@
   <h1 class="hero__display">Power Plant<br><em>Browser</em></h1>
   <p class="hero__lede">
     Every power plant that reported to the U.S. Energy Information Administration in the last ten
-    years — including the ones that have since shut down. Pick a state, then a plant, to see what it
-    generated every month, what it burned, and an estimate of the CO₂ that came with it.
+    years — including the ones that have since shut down. Find one on the map, or pick a state and then
+    a plant, to see what it generated every month, what it burned, and an estimate of the CO₂ that came
+    with it.
   </p>
   <hr class="hero__rule">
 </div>
+
+<!-- ════════════════════════════ map ═════════════════════════════════════ -->
+<section class="wrap mapsec" aria-labelledby="mapTitle">
+  <div class="card">
+    <div class="card__head">
+      <h2 class="card__title" id="mapTitle">Every plant on the map</h2>
+      <div class="card__spacer"></div>
+      <span class="count" id="mapCount"></span>
+    </div>
+    <p class="card__note">
+      Each dot is a power plant, coloured by its main energy source and sized by its capacity; faded
+      dots are plants that have retired. Select a dot to open that plant below. Use the buttons under
+      the map to show or hide each source.
+    </p>
+    <div class="plantmap" id="plantMap" aria-label="Map of U.S. power plants. The menus below the map select the same plants."></div>
+    <p class="mapsel" id="mapSelected" hidden></p>
+    <div class="maplegend" id="mapLegend" role="group" aria-label="Show or hide plants by energy source"></div>
+    <p class="card__note" id="mapHint" style="margin:10px 0 0">
+      Click the map first to zoom with the scroll wheel, or use the + and − buttons. On a phone, pinch to
+      zoom. <span id="mapMissing"></span>
+    </p>
+  </div>
+</section>
 
 <!-- ════════════════════════════ filter row ══════════════════════════════ -->
 <div class="filters">
@@ -69,7 +97,7 @@
   <p id="boot" class="empty">Loading EIA data…</p>
 
   <div id="intro" class="card intro" hidden>
-    <p class="intro__title">Start by choosing a state</p>
+    <p class="intro__title">Pick a plant on the map, or choose a state</p>
     <p>
       The second menu then lists every plant in that state that reported to EIA from
       <span id="introStart">2016</span> onward, with its main energy source in brackets. Plants that
@@ -368,6 +396,9 @@
   </div>
 </footer>
 
-<script type="module" src="./assets/js/plants.js?v=14"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+        integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<script type="module" src="./assets/js/plants.js?v=15"></script>
 </body>
 </html>
