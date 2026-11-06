@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-09-26T19:57:32Z",
+  "generated_utc": "2026-11-06T17:44:51Z",
   "start": "2016-01",
-  "end": "2026-07",
+  "end": "2026-08",
   "generator_snapshots": [
     "2016-12",
     "2017-12",
@@ -13,10 +13,10 @@
     "2023-12",
     "2024-12",
     "2025-12",
-    "2026-07"
+    "2026-08"
   ],
-  "plant_count": 14597,
-  "complete_through": 2024,
+  "plant_count": 15330,
+  "complete_through": 2025,
   "states": [
     {
       "code": "AL",
